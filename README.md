@@ -24,3 +24,7 @@ Jalankan pipeline latihan:
 | latih_klasifikasi/ | kode latihan klasifier gambar 4 kelas (data di ~/dataset_publik) |
 
 Tidak ikut di repo ini: data (session0_right, MIO-TCD), bobot .pth, video, dan venv.
+
+| latih_klasifikasi/ | kode latihan klasifier gambar 4 kelas (data di ~/dataset_publik) |
+
+Tidak ikut di repo ini: data (session0_right, MIO-TCD), bobot .pth, video, dan venv.
