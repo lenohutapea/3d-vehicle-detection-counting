@@ -1,0 +1,6 @@
+skor_min,TP,FP,FN,presisi,recall,deteksi_zona_jauh,kotak_tak_valid,jauh_pusat_terdeteksi,med_iou_tp,med_galat_w_m,med_galat_h_m,med_galat_l_m,med_galat_depth_m,med_rel_w,med_rel_h,med_rel_l,med_rel_depth
+0.1,0,248,12,0.0,0.0,61,231,0,nan,nan,nan,nan,nan,nan,nan,nan,nan
+0.3,0,88,12,0.0,0.0,0,88,0,nan,nan,nan,nan,nan,nan,nan,nan,nan
+0.5,0,0,12,0.0,0.0,0,0,0,nan,nan,nan,nan,nan,nan,nan,nan,nan
+0.7,0,0,12,0.0,0.0,0,0,0,nan,nan,nan,nan,nan,nan,nan,nan,nan
+0.9,0,0,12,0.0,0.0,0,0,0,nan,nan,nan,nan,nan,nan,nan,nan,nan

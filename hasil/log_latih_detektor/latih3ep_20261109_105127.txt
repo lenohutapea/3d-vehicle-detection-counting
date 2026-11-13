@@ -1,0 +1,21 @@
+torch 2.15.0+cpu | torchvision 0.29.2+cpu | numpy 2.5.4 | device cpu
+argumen: {'images': '/home/angeleno/projects/data_session0_right/converted/images', 'labels': '/home/angeleno/projects/data_session0_right/converted/labels', 'out': '/home/angeleno/projects/centernet_session0_right.pth', 'force': False, 'logdir': '/home/angeleno/projects/logs', 'tag': 'latih3ep', 'epochs': 3, 'batch_size': 2, 'lr': 5e-05, 'y_min': 150, 'max_train': None, 'max_val': None, 'shuffle': False, 'aug_fix': False, 'no_pretrained': False, 'seed': None}
+gambar: 3182 | pembagian penuh latih/uji: 2545/637 | dipakai: 2545/637
+latih image_0001.jpg .. image_2545.jpg | uji image_2546.jpg .. image_3182.jpg
+kamera: f(720p)=2662.78 h=8.071 m | y_min=150 | shuffle=False | aug_fix=False
+log: /home/angeleno/projects/logs/latih3ep_20261109_105127.txt | /home/angeleno/projects/logs/latih3ep_20261109_105127.csv
+epoch 1/3 | lr 5e-05
+  latih: loss=2.6435 pos=0.6215 neg=1.0418 off=0.2145 whl=0.7658
+  uji  : loss=1.3302 pos=0.5299 neg=0.1820 off=0.1587 whl=0.4596
+  waktu epoch 2724.7 s | 1.98 s/iterasi latih
+  val loss membaik ke 1.3302 -> disimpan /home/angeleno/projects/centernet_session0_right.pth
+epoch 2/3 | lr 5e-05
+  latih: loss=0.7390 pos=0.1651 neg=0.1445 off=0.1239 whl=0.3055
+  uji  : loss=1.5186 pos=0.7150 neg=0.0812 off=0.1250 whl=0.5974
+  waktu epoch 2489.2 s | 1.80 s/iterasi latih
+epoch 3/3 | lr 5e-05
+  latih: loss=0.5528 pos=0.1194 neg=0.1039 off=0.0929 whl=0.2367
+  uji  : loss=1.2080 pos=0.6744 neg=0.0747 off=0.1008 whl=0.3581
+  waktu epoch 2542.0 s | 1.84 s/iterasi latih
+  val loss membaik ke 1.2080 -> disimpan /home/angeleno/projects/centernet_session0_right.pth
+selesai. val loss terbaik 1.2080

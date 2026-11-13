@@ -1,0 +1,12 @@
+venv/
+__pycache__/
+*.pyc
+*.pth
+*.mp4
+*.pkl
+counting_*.csv
+hasil_*.txt
+lembar_*.png
+cek_*/
+output_frames/
+video_tracking_carla/

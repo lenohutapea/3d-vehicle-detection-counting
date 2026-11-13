@@ -1,0 +1,13 @@
+torch 2.15.0+cpu | torchvision 0.29.2+cpu | numpy 2.5.4 | device cpu
+argumen: {'images': '/home/angeleno/projects/data_session0_right/converted/images', 'labels': '/home/angeleno/projects/data_session0_right/converted/labels', 'out': '/home/angeleno/projects/uji_lama.pth', 'force': True, 'logdir': '/home/angeleno/projects/logs', 'tag': 'uji_lama', 'epochs': 1, 'batch_size': 2, 'lr': 5e-05, 'y_min': 150, 'max_train': 20, 'max_val': 6, 'shuffle': False, 'aug_fix': False, 'no_pretrained': False, 'init': '/home/angeleno/projects/centernet-3d-bbox_asli.pth', 'seed': None}
+gambar: 3182 | pembagian penuh latih/uji: 2545/637 | dipakai: 20/6
+latih image_0001.jpg .. image_0020.jpg | uji image_2546.jpg .. image_2551.jpg
+kamera: f(720p)=2662.78 h=8.071 m | y_min=150 | shuffle=False | aug_fix=False
+log: /home/angeleno/projects/logs/uji_lama_20261111_094217.txt | /home/angeleno/projects/logs/uji_lama_20261111_094217.csv
+bobot awal dimuat dari /home/angeleno/projects/centernet-3d-bbox_asli.pth
+epoch 1/1 | lr 5e-05
+  latih: loss=2.5384 pos=0.0718 neg=0.7942 off=0.3920 whl=1.2805
+  uji  : loss=2.2339 pos=0.4236 neg=0.0093 off=0.2280 whl=1.5730
+  waktu epoch 20.7 s | 1.89 s/iterasi latih
+  val loss membaik ke 2.2339 -> disimpan /home/angeleno/projects/uji_lama.pth
+selesai. val loss terbaik 2.2339

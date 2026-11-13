@@ -1,0 +1,1 @@
+epoch,lr,train_loss,train_pos,train_neg,train_off,train_whl,val_loss,val_pos,val_neg,val_off,val_whl,detik_epoch,detik_per_iter_latih

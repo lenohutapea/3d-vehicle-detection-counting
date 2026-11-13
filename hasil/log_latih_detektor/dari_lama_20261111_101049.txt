@@ -1,0 +1,22 @@
+torch 2.15.0+cpu | torchvision 0.29.2+cpu | numpy 2.5.4 | device cpu
+argumen: {'images': '/home/angeleno/projects/data_session0_right/converted/images', 'labels': '/home/angeleno/projects/data_session0_right/converted/labels', 'out': '/home/angeleno/projects/centernet_dari_lama.pth', 'force': False, 'logdir': '/home/angeleno/projects/logs', 'tag': 'dari_lama', 'epochs': 3, 'batch_size': 2, 'lr': 5e-05, 'y_min': 150, 'max_train': None, 'max_val': None, 'shuffle': False, 'aug_fix': False, 'no_pretrained': False, 'init': '/home/angeleno/projects/centernet-3d-bbox_asli.pth', 'seed': None}
+gambar: 3182 | pembagian penuh latih/uji: 2545/637 | dipakai: 2545/637
+latih image_0001.jpg .. image_2545.jpg | uji image_2546.jpg .. image_3182.jpg
+kamera: f(720p)=2662.78 h=8.071 m | y_min=150 | shuffle=False | aug_fix=False
+log: /home/angeleno/projects/logs/dari_lama_20261111_101049.txt | /home/angeleno/projects/logs/dari_lama_20261111_101049.csv
+bobot awal dimuat dari /home/angeleno/projects/centernet-3d-bbox_asli.pth
+epoch 1/3 | lr 5e-05
+  latih: loss=0.6576 pos=0.1513 neg=0.1358 off=0.1201 whl=0.2504
+  uji  : loss=1.1398 pos=0.6989 neg=0.0558 off=0.1001 whl=0.2850
+  waktu epoch 2793.8 s | 2.03 s/iterasi latih
+  val loss membaik ke 1.1398 -> disimpan /home/angeleno/projects/centernet_dari_lama.pth
+epoch 2/3 | lr 5e-05
+  latih: loss=0.4576 pos=0.1060 neg=0.0977 off=0.0893 whl=0.1647
+  uji  : loss=1.6411 pos=1.1618 neg=0.0573 off=0.1331 whl=0.2889
+  waktu epoch 2583.0 s | 1.87 s/iterasi latih
+epoch 3/3 | lr 5e-05
+  latih: loss=0.3789 pos=0.0913 neg=0.0760 off=0.0696 whl=0.1420
+  uji  : loss=0.8202 pos=0.3915 neg=0.1431 off=0.0843 whl=0.2012
+  waktu epoch 2792.2 s | 2.03 s/iterasi latih
+  val loss membaik ke 0.8202 -> disimpan /home/angeleno/projects/centernet_dari_lama.pth
+selesai. val loss terbaik 0.8202

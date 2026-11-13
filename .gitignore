@@ -1,0 +1,17 @@
+venv_3dbbox/
+data_session0_right/
+bobot/
+video_uji/
+acuan/
+_buangan/
+3d-car-classification-counting/
+.rapikan_cadangan/
+.rapikan_catatan.json
+hasil/video/
+uji_session0_pipeline/crop_cek/
+uji_session0_pipeline/output_frames/
+__pycache__/
+*.pth
+*.pkl
+*.mp4
+*.sebelum_*

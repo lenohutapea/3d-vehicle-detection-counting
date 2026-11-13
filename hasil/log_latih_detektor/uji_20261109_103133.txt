@@ -1,0 +1,12 @@
+torch 2.15.0+cpu | torchvision 0.29.2+cpu | numpy 2.5.4 | device cpu
+argumen: {'images': '/home/angeleno/projects/data_session0_right/converted/images', 'labels': '/home/angeleno/projects/data_session0_right/converted/labels', 'out': '/home/angeleno/projects/uji_kecil.pth', 'force': True, 'logdir': '/home/angeleno/projects/logs', 'tag': 'uji', 'epochs': 1, 'batch_size': 2, 'lr': 5e-05, 'y_min': 150, 'max_train': 20, 'max_val': 6, 'shuffle': False, 'aug_fix': False, 'no_pretrained': False, 'seed': None}
+gambar: 3182 | pembagian penuh latih/uji: 2545/637 | dipakai: 20/6
+latih image_0001.jpg .. image_0020.jpg | uji image_2546.jpg .. image_2551.jpg
+kamera: f(720p)=2662.78 h=8.071 m | y_min=150 | shuffle=False | aug_fix=False
+log: /home/angeleno/projects/logs/uji_20261109_103133.txt | /home/angeleno/projects/logs/uji_20261109_103133.csv
+epoch 1/1 | lr 5e-05
+  latih: loss=64.4885 pos=1.7388 neg=48.4557 off=0.8496 whl=13.4444
+  uji  : loss=29.4345 pos=3.3207 neg=17.4048 off=0.3316 whl=8.3774
+  waktu epoch 25.2 s | 2.27 s/iterasi latih
+  val loss membaik ke 29.4345 -> disimpan /home/angeleno/projects/uji_kecil.pth
+selesai. val loss terbaik 29.4345
