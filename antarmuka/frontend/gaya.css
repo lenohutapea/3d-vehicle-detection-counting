@@ -75,3 +75,48 @@ tbody tr { cursor: pointer; }
 tbody tr:hover { background: var(--pilih); }
 .kanan { text-align: right; }
 td .titik { margin-right: 6px; vertical-align: baseline; }
+
+/* ---------- navigasi dan halaman ---------- */
+.nav { display: flex; gap: 4px; padding: 0 20px; background: var(--kartu); border-bottom: 1px solid var(--garis); overflow-x: auto; }
+.nav a { padding: 10px 14px; color: var(--redup); text-decoration: none; font-size: 14px; white-space: nowrap; border-bottom: 2px solid transparent; }
+.nav a:hover { color: var(--teks); }
+.nav a.aktif { color: var(--aksen); border-bottom-color: var(--aksen); font-weight: 600; }
+.halaman { max-width: 1280px; margin: 0 auto; padding: 16px 20px 40px; display: flex; flex-direction: column; gap: 16px; }
+.halaman[hidden] { display: none; }
+@media (max-width: 820px) { .halaman { padding: 12px 16px 32px; } .nav { padding: 0 8px; } }
+.dua { display: grid; grid-template-columns: 340px minmax(0, 1fr); gap: 16px; align-items: start; }
+@media (max-width: 900px) { .dua { grid-template-columns: minmax(0, 1fr); } }
+.kolom { display: flex; flex-direction: column; gap: 16px; min-width: 0; }
+.baris { display: flex; gap: 10px; align-items: end; flex-wrap: wrap; }
+.baris > div { flex: 1 1 140px; min-width: 0; }
+input[type=text], input[type=date], input[type=search] { width: 100%; padding: 7px 8px; border: 1px solid var(--garis); border-radius: 6px;
+  background: var(--latar); color: var(--teks); font: inherit; font-size: 14px; }
+input[type=range] { width: 100%; }
+.utamakan { padding: 8px 14px; border: 0; background: var(--aksen); color: var(--aksen-teks); font-weight: 600; }
+.utamakan:disabled { opacity: .6; cursor: default; }
+.status { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; }
+.lampu { width: 9px; height: 9px; border-radius: 50%; background: var(--redup); display: inline-block; }
+.lampu.hidup { background: #1a9c4b; }
+.jam { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; padding: 0; list-style: none; }
+.jam li { font-size: 12px; border: 1px solid var(--garis); border-radius: 999px; padding: 2px 9px; font-variant-numeric: tabular-nums; }
+.jam li.sudah { background: var(--pilih); }
+dl.rinci { display: grid; grid-template-columns: auto 1fr; gap: 4px 14px; margin: 0; font-size: 13px; }
+dl.rinci dt { color: var(--redup); }
+dl.rinci dd { margin: 0; }
+.tanda { font-size: 12px; border: 1px solid var(--garis); border-radius: 999px; padding: 1px 8px; white-space: nowrap; }
+.tanda.otomatis { background: var(--pilih); }
+td .polos, td .tautan { margin-right: 6px; }
+td.aksi_sel { white-space: nowrap; text-align: right; }
+#pratinjau_gbr { width: 100%; border-radius: 6px; background: #000; aspect-ratio: 16 / 9; display: block; }
+.geser { display: grid; grid-template-columns: 1fr 92px; gap: 8px; align-items: center; }
+.pilihan { display: flex; gap: 14px; font-size: 14px; margin: 6px 0; flex-wrap: wrap; }
+.pilihan label { display: inline-flex; align-items: center; gap: 6px; margin: 0; font-size: 14px; color: var(--teks); }
+.berhasil { color: #1a9c4b; font-size: 13px; margin: 8px 0 0; }
+tbody tr.statis { cursor: default; }
+tbody tr.statis:hover { background: none; }
+.kembali { background: none; border: 0; color: var(--aksen); padding: 0; font-size: 13px; }
+code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; background: var(--latar); border: 1px solid var(--garis);
+  border-radius: 4px; padding: 1px 5px; overflow-wrap: anywhere; }
+#hasil_rinci { display: flex; flex-direction: column; gap: 16px; }
+#hasil_rinci[hidden] { display: none; }
+#tabel_hasil tr, #tabel tr { cursor: pointer; }

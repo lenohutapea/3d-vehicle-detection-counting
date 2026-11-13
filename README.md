@@ -1,6 +1,6 @@
 # 3D Vehicle Detection, Classification, and Counting
 
-Pipeline deteksi kotak 3D, pelacakan, klasifikasi 4 kelas, dan penghitungan kendaraan dari satu kamera jalan raya. Dikerjakan sebagai Tugas Akhir oleh Angeleno Zuliano Hutapea.
+Pipeline deteksi kotak 3D, pelacakan, klasifikasi 4 kelas, dan penghitungan kendaraan dari satu kamera jalan raya, dilengkapi antarmuka web. Dikerjakan sebagai Tugas Akhir oleh Angeleno Zuliano Hutapea.
 
 Detektor yang dipakai adalah CenterNet (ResNet-18) yang meregresikan kotak 3D kendaraan, tanpa YOLO. Kode berangkat dari proyek [antoinekeller/3d_bbox_highway](https://github.com/antoinekeller/3d_bbox_highway).
 
@@ -15,6 +15,7 @@ Detektor yang dipakai adalah CenterNet (ResNet-18) yang meregresikan kotak 3D ke
 - [Yang tidak ada di repo ini](#yang-tidak-ada-di-repo-ini)
 - [Pemasangan](#pemasangan)
 - [Menjalankan pipeline](#menjalankan-pipeline)
+- [Antarmuka web](#antarmuka-web)
 - [Evaluasi hitungan terhadap ground truth](#evaluasi-hitungan-terhadap-ground-truth)
 - [Hasil](#hasil)
 - [Melatih ulang model](#melatih-ulang-model)
@@ -25,10 +26,22 @@ Detektor yang dipakai adalah CenterNet (ResNet-18) yang meregresikan kotak 3D ke
 
 ## Cara kerja
 
-```
-video ─► Detektor CenterNet ─► Proyeksi ke bidang jalan ─► Tracker ─► Klasifikasi ─► Counter ─► video hasil + log
-         (titik tanah + rasio     (piksel → meter,           (Kalman +   (gambar ×      (garis
-          lebar/tinggi/panjang)    filter jalur dan ukuran)    Hungarian)   panjang)       virtual)
+```mermaid
+flowchart TD
+    A([Video 1280 x 720]) --> B[Deteksi CenterNet ResNet-18<br/>titik tanah dan rasio lebar, tinggi, panjang]
+    B --> C[Proyeksi ke bidang jalan<br/>piksel menjadi meter memakai kalibrasi kamera]
+    C --> D{Di dalam jalur dan<br/>ukurannya wajar?}
+    D -- tidak --> X([Deteksi dibuang])
+    D -- ya --> E[Pelacakan<br/>Kalman Filter dan asosiasi Hungarian]
+    E --> F[Potong gambar kendaraan<br/>dari kotak 3D yang diproyeksikan]
+    F --> G[Klasifier gambar ResNet-18<br/>probabilitas 4 kelas]
+    E --> H[Panjang terukur<br/>kecocokan tiap kelas]
+    G --> I[Gabungkan skor gambar dan panjang<br/>kelas = skor terbesar]
+    H --> I
+    I --> J{Melintasi garis hitung?<br/>mendekat 50 m, menjauh 85 m}
+    J -- belum --> E
+    J -- ya --> K[Hitung satu kali<br/>catat kelas dan arah]
+    K --> L([Video hasil berkotak 3D<br/>dan counting_log.csv])
 ```
 
 | Tahap | Berkas | Keterangan |
@@ -82,9 +95,13 @@ Kelas akhir adalah skor terbesar. Panjang tidak bisa membedakan `truck` dan `bus
 │   ├── siapkan_mio_tcd.py   menyusun dataset dari MIO-TCD
 │   ├── potong_session0.py   memotong gambar kendaraan dari frame session0_right
 │   └── latih_klasifikasi.py
+├── antarmuka/               antarmuka web
+│   ├── backend/             app.py (server FastAPI), layanan.py (logika), pratinjau_kalibrasi.py, jalankan.sh
+│   ├── frontend/            index.html, gaya.css, aplikasi.js
+│   └── node/                node_kamera.py, program untuk Raspberry Pi
 ├── alat/                    skrip bantu
 │   ├── hitung_gt.py         hitungan ground truth dari anotasi dan perbandingan dengan pipeline
-│   ├── pasang_*.py          patch yang pernah dipasang ke pipeline (arsip)
+│   ├── pasang_*.py          patch yang pernah dipasang ke pipeline (arsip) dan pemasang antarmuka
 │   └── rapikan_folder.py, bersihkan_repo_utama.py
 ├── hasil/                   log latihan, hasil prediksi, gambar, hasil counting
 └── requirements_3dbbox.txt
@@ -103,6 +120,8 @@ Berkas berikut tidak disertakan karena ukurannya besar atau bukan milik proyek i
 | Data `session0_right` | `~/projects/data_session0_right/` | 3.182 frame 1920 × 1080 dengan anotasi kotak 3D per frame (XML) dan berkas kalibrasi kamera |
 | Dataset klasifikasi | `~/dataset_publik/dataset_klasifikasi/` | 40.000 gambar dari MIO-TCD, disusun menjadi 4 kelas |
 | Video uji | `~/projects/video_uji/` | dibuat dari frame 2545–3181 session0_right |
+| Rekaman dari node | `~/projects/video_rekaman/` | video yang dikirim Raspberry Pi atau diunggah lewat antarmuka |
+| Setelan antarmuka | `~/projects/antarmuka/data/` | dibuat saat server pertama dijalankan; berisi token node, jadi tidak diunggah |
 
 ## Pemasangan
 
@@ -112,6 +131,7 @@ Diuji pada Ubuntu dengan Python 3.12, tanpa GPU.
 python3 -m venv ~/projects/venv_3dbbox
 source ~/projects/venv_3dbbox/bin/activate
 pip install -r requirements_3dbbox.txt
+pip install fastapi uvicorn python-multipart     # untuk antarmuka web
 sudo apt install ffmpeg        # opsional: agar video hasil berformat H.264
 ```
 
@@ -148,6 +168,67 @@ Video masukan harus 1280 × 720, sesuai kalibrasi dan detektor.
 | `--no-save` | tidak menyimpan video |
 | `--no-show` | tanpa jendela pratinjau |
 | `--debug` | tandai deteksi mentah yang lolos dan yang ditolak filter |
+
+## Antarmuka web
+
+Antarmuka menjalankan `run.py` yang sama dengan terminal, jadi hasilnya sama. Backend memakai FastAPI; halaman web memakai HTML, CSS, dan JavaScript biasa tanpa pustaka tambahan.
+
+```bash
+~/projects/antarmuka/backend/jalankan.sh
+```
+
+Lalu buka `http://127.0.0.1:8000` di peramban.
+
+Alur dari kamera sampai halaman Hasil:
+
+```mermaid
+flowchart TD
+    W1[Halaman Pengambilan video] -- minta rekam manual --> S1[Backend FastAPI]
+    S1 -- tugas: jadwal otomatis<br/>dan permintaan manual --> P[Raspberry Pi<br/>node_kamera.py]
+    P -- kirim video --> S2{Jenis rekaman}
+    S2 -- otomatis --> S3[Antrean proses]
+    S2 -- manual --> S4[(Rekaman tersimpan)]
+    S4 -- dipilih di halaman Proses<br/>bersama model .pth --> S3
+    W2[Halaman Kalibrasi kamera] -- profil kamera per node --> S5
+    S3 --> S5[Pipeline run.py]
+    S5 --> S6[(Hasil: video, log, ringkasan)]
+    S6 --> W4[Halaman Hasil<br/>daftar menurut nama, jam, dan node]
+```
+
+| Halaman | Fungsi |
+|---|---|
+| Pengambilan video | Memilih node, melihat status Raspberry Pi, melihat jadwal otomatis, merekam manual, mengunggah video, dan melihat daftar rekaman. |
+| Kalibrasi kamera | Mengatur sudut, tinggi, dan focal kamera per node dengan pratinjau langsung, atau mengunggah berkas kalibrasi. Garis hitung, median, dan lebar jalur juga diatur di sini. |
+| Proses | Memilih video, profil kamera (node), dan bobot model `.pth`, lalu memprosesnya. |
+| Hasil | Daftar semua video yang diproses, disaring menurut nama, tanggal rekam, dan node. Tiap hasil menampilkan video, hitungan per kelas dan arah, grafik, dan tabel kendaraan. |
+
+### Pengambilan video
+
+- **Otomatis.** Jadwalnya tetap dan ditulis di `antarmuka/data/setelan.json` (bawaan 6 video per hari, 60 detik per video, pukul 06.00–18.00). Halaman hanya menampilkannya. Rekaman otomatis langsung diproses.
+- **Manual.** Direkam saat tombol ditekan, atau diunggah dari berkas. Rekaman manual hanya disimpan, lalu dipilih sendiri saat ingin diproses.
+
+### Node kamera (Raspberry Pi)
+
+Raspberry Pi menjalankan `antarmuka/node/node_kamera.py`, yang hanya memakai pustaka bawaan Python. Program itu bertanya ke server tiap 5 detik, merekam pada jam jadwal atau saat ada permintaan manual, lalu mengirim videonya.
+
+```bash
+# di Raspberry Pi (kamera asli)
+python3 node_kamera.py --server http://ALAMAT_SERVER:8000 --node kamera1 --token TOKEN
+
+# uji tanpa kamera: kamera tiruan dari berkas video (butuh ffmpeg)
+python3 node_kamera.py --server http://127.0.0.1:8000 --node kamera1 --token TOKEN \
+    --sumber ~/projects/video_uji/uji_val_720p.mp4
+```
+
+`TOKEN` adalah nilai `token_node` di `antarmuka/data/setelan.json` pada server. Agar Raspberry Pi bisa mengirim dari jaringan, ubah `izinkan_jaringan` menjadi `true` di berkas itu lalu mulai ulang server.
+
+### Profil kamera
+
+Kalibrasi dan garis hitung disimpan per node di `antarmuka/data/kamera/<node>.json`. Saat sebuah video diproses, profil node-nya diberikan ke pipeline lewat variabel lingkungan `PROFIL_KAMERA`, dan `config.py` menimpa nilai bawaannya dengan isi profil itu. Tanpa variabel tersebut, `config.py` berlaku apa adanya.
+
+### Keamanan
+
+Halaman web dan API-nya hanya melayani komputer server sendiri (`127.0.0.1`). Dari jaringan, yang dilayani hanya alamat `/api/node/...` untuk Raspberry Pi, dan itu wajib membawa token.
 
 ## Evaluasi hitungan terhadap ground truth
 
@@ -229,13 +310,15 @@ Jalur menjauh memakai garis yang lebih jauh karena kendaraannya masuk dari tepi 
 - **Kecepatan bingkai video uji diasumsikan 25 fps.** Kecepatan kendaraan tidak dipakai dan bukan bagian dari cakupan.
 - **Ambang dan cara penggabungan klasifikasi bersifat heuristik**, dipilih dari pengujian pada data ini.
 - **Klasifier disesuaikan dengan kamera `session0_right`.** Pada kamera lain perlu disesuaikan ulang.
+- **Tanpa GPU, deteksi berjalan sekitar 2–3 frame per detik.** Video 60 detik diproses sekitar 10 menit, jadi belum real-time.
+- **Perekaman dari Raspberry Pi belum diuji dengan kamera asli.** Yang diuji baru kamera tiruan dari berkas video.
 
 ## Pindah ke kamera sendiri
 
 Kode tidak perlu diubah. Yang perlu diulang:
 
-1. kalibrasi kamera (tinggi, sudut, focal) dengan `tools/calibrate_tuner.py`, atau berkas kalibrasi sendiri;
-2. batas jalur, median, dan letak kedua garis hitung di `config.py`;
+1. kalibrasi kamera (tinggi, sudut, focal) lewat halaman Kalibrasi kamera di antarmuka, atau berkas kalibrasi sendiri;
+2. batas jalur, median, dan letak kedua garis hitung, di halaman yang sama;
 3. latihan ulang detektor dengan data kamera tersebut;
 4. penyesuaian klasifier dengan potongan gambar dari kamera tersebut.
 

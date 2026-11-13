@@ -12,63 +12,192 @@
     <h1>Penghitung Kendaraan 3D</h1>
     <p class="sub">Deteksi kotak 3D, pelacakan, klasifikasi 4 kelas, dan penghitungan</p>
   </div>
-  <div id="model" class="lencana"></div>
 </header>
-
+<nav class="nav" aria-label="Halaman">
+  <a href="#/rekam" data-hal="rekam">Pengambilan video</a>
+  <a href="#/kalibrasi" data-hal="kalibrasi">Kalibrasi kamera</a>
+  <a href="#/proses" data-hal="proses">Proses</a>
+  <a href="#/hasil" data-hal="hasil">Hasil</a>
+</nav>
 <div id="masalah" class="peringatan" hidden></div>
 
-<main class="tata">
-  <aside class="samping">
+<!-- ================= Pengambilan video ================= -->
+<main id="hal_rekam" class="halaman" hidden>
+  <div class="dua">
+    <div class="kolom">
+      <section class="kartu">
+        <h2>Kamera (node)</h2>
+        <label for="rekam_node">Node</label>
+        <select id="rekam_node"></select>
+        <p class="status" style="margin-top:10px"><span id="node_lampu" class="lampu"></span><span id="node_status"></span></p>
+      </section>
+      <section class="kartu">
+        <h2>Pengambilan otomatis</h2>
+        <dl class="rinci">
+          <dt>Video per hari</dt><dd id="jadwal_n"></dd>
+          <dt>Durasi tiap video</dt><dd id="jadwal_durasi"></dd>
+          <dt>Rentang jam</dt><dd id="jadwal_rentang"></dd>
+        </dl>
+        <ul id="jadwal_jam" class="jam"></ul>
+        <p class="redup">Jadwal ini tetap dan tidak bisa diubah dari halaman. Rekaman otomatis langsung diproses. Berkas setelan: <code id="jadwal_berkas"></code></p>
+      </section>
+      <section class="kartu">
+        <h2>Pengambilan manual</h2>
+        <form id="form_rekam" class="baris">
+          <div><label for="rekam_durasi">Durasi (detik)</label><input id="rekam_durasi" type="number" min="5" max="1800" step="5" value="30"></div>
+          <button class="utamakan" type="submit">Rekam sekarang</button>
+        </form>
+        <p id="rekam_pesan" class="galat" hidden></p>
+        <ul id="permintaan" class="riwayat" style="margin-top:10px"></ul>
+        <form id="form_unggah" style="margin-top:14px">
+          <label for="unggah_berkas">atau unggah berkas video</label>
+          <input id="unggah_berkas" type="file" accept=".mp4,.avi,.mov,.mkv,video/*">
+          <button class="polos" type="submit" style="margin-top:8px">Unggah</button>
+        </form>
+        <p id="unggah_pesan" class="galat" hidden></p>
+        <p class="redup">Rekaman manual hanya disimpan. Pilih di tabel untuk memprosesnya.</p>
+      </section>
+    </div>
+    <section class="kartu">
+      <h2>Rekaman tersimpan</h2>
+      <div class="gulir">
+        <table>
+          <thead><tr><th>Waktu rekam</th><th>Jenis</th><th class="kanan">Ukuran</th><th>Status</th><th></th></tr></thead>
+          <tbody id="tabel_rekaman"></tbody>
+        </table>
+      </div>
+      <p id="rekaman_kosong" class="redup" hidden>Belum ada rekaman dari node ini.</p>
+    </section>
+  </div>
+</main>
+
+<!-- ================= Kalibrasi kamera ================= -->
+<main id="hal_kalibrasi" class="halaman" hidden>
+  <div class="dua">
+    <form id="form_kal" class="kolom">
+      <section class="kartu">
+        <h2>Profil kamera</h2>
+        <label for="kal_node">Node</label>
+        <select id="kal_node"></select>
+        <p id="kal_tersimpan" class="redup"></p>
+        <label for="kal_sumber">Video untuk pratinjau</label>
+        <select id="kal_sumber"></select>
+        <label for="kal_posisi">Posisi frame</label>
+        <input id="kal_posisi" type="range" min="0" max="1" step="0.01" value="0.3">
+      </section>
+      <section class="kartu">
+        <h2>Kalibrasi</h2>
+        <div class="pilihan" role="radiogroup" aria-label="Cara kalibrasi">
+          <label><input type="radio" name="mode" value="nilai"> Atur nilai</label>
+          <label><input type="radio" name="mode" value="xml"> Berkas kalibrasi</label>
+        </div>
+        <div id="kal_nilai">
+          <label for="PITCH_DEG">Sudut tunduk kamera (derajat)</label>
+          <div class="geser"><input type="range" data-untuk="PITCH_DEG" min="0" max="60" step="0.1"><input id="PITCH_DEG" name="PITCH_DEG" type="number" step="0.1"></div>
+          <label for="CAM_HEIGHT_M">Tinggi kamera (m)</label>
+          <div class="geser"><input type="range" data-untuk="CAM_HEIGHT_M" min="2" max="30" step="0.05"><input id="CAM_HEIGHT_M" name="CAM_HEIGHT_M" type="number" step="0.05"></div>
+          <label for="FOCAL_PX">Focal length (piksel)</label>
+          <div class="geser"><input type="range" data-untuk="FOCAL_PX" min="300" max="6000" step="5"><input id="FOCAL_PX" name="FOCAL_PX" type="number" step="5"></div>
+        </div>
+        <div id="kal_xml" hidden>
+          <label for="xml">Berkas kalibrasi (XML: f, h, vanishPoints)</label>
+          <input id="xml" name="xml" type="file" accept=".xml,text/xml">
+          <p id="kal_xml_ket" class="redup"></p>
+        </div>
+      </section>
+      <section class="kartu">
+        <h2>Jalur dan garis hitung</h2>
+        <div class="kisi2">
+          <div><label for="LINE_Y_DEFAULT_M">Garis mendekat (m)</label><input id="LINE_Y_DEFAULT_M" name="LINE_Y_DEFAULT_M" type="number" step="1"></div>
+          <div><label for="LINE_Y_AWAY_M">Garis menjauh (m)</label><input id="LINE_Y_AWAY_M" name="LINE_Y_AWAY_M" type="number" step="1"></div>
+          <div><label for="MEDIAN_X_M">Median, batas dua arah (m)</label><input id="MEDIAN_X_M" name="MEDIAN_X_M" type="number" step="0.5"></div>
+          <div><label for="LANE_HALF_WIDTH_M">Setengah lebar jalur (m)</label><input id="LANE_HALF_WIDTH_M" name="LANE_HALF_WIDTH_M" type="number" step="0.5"></div>
+          <div><label for="MAX_TRACK_DEPTH_M">Jarak terjauh (m)</label><input id="MAX_TRACK_DEPTH_M" name="MAX_TRACK_DEPTH_M" type="number" step="5"></div>
+        </div>
+        <button id="kal_simpan" class="utamakan" type="submit" style="margin-top:14px;width:100%">Simpan profil</button>
+        <p id="kal_pesan" class="galat" hidden></p>
+        <p id="kal_ok" class="berhasil" hidden></p>
+      </section>
+    </form>
+    <section class="kartu">
+      <h2>Pratinjau</h2>
+      <img id="pratinjau_gbr" alt="Frame video dengan kisi jalan, garis hitung, dan kotak mobil acuan">
+      <p id="pratinjau_pesan" class="galat" hidden></p>
+      <p class="redup">Kalibrasi sudah tepat bila garis kisi sejajar marka jalan dan kotak hijau (4,5 × 1,8 × 1,5 m) seukuran mobil di dekatnya.
+        Jingga: batas jalur. Sian: median. Merah: garis hitung mendekat. Ungu: garis hitung menjauh.</p>
+    </section>
+  </div>
+</main>
+
+<!-- ================= Proses ================= -->
+<main id="hal_proses" class="halaman" hidden>
+  <div class="dua">
     <section class="kartu">
       <h2>Proses video</h2>
-      <form id="form">
-        <label for="video">Video di server</label>
-        <select id="video" name="video"></select>
-
-        <label for="berkas">atau unggah video</label>
-        <input id="berkas" name="berkas" type="file" accept=".mp4,.avi,.mov,.mkv,video/*">
-
+      <form id="form_proses">
+        <label for="proses_sumber">Video</label>
+        <select id="proses_sumber"></select>
+        <label for="proses_node">Profil kamera (node)</label>
+        <select id="proses_node"></select>
+        <label for="proses_model">Model (bobot .pth)</label>
+        <select id="proses_model"></select>
         <details>
-          <summary>Setelan</summary>
+          <summary>Setelan deteksi</summary>
           <div class="kisi2">
-            <div><label for="conf">Ambang deteksi</label><input id="conf" name="conf" type="number" step="0.05" min="0.05" max="0.95"></div>
-            <div><label for="conf_low">Ambang rendah</label><input id="conf_low" name="conf_low" type="number" step="0.05" min="0" max="0.9"></div>
-            <div><label for="line_y">Garis mendekat (m)</label><input id="line_y" name="line_y" type="number" step="1" min="5" max="200"></div>
-            <div><label for="line_y_away">Garis menjauh (m)</label><input id="line_y_away" name="line_y_away" type="number" step="1" min="5" max="200"></div>
+            <div><label for="conf">Ambang deteksi</label><input id="conf" type="number" step="0.05" min="0.05" max="0.95"></div>
+            <div><label for="conf_low">Ambang rendah</label><input id="conf_low" type="number" step="0.05" min="0" max="0.9"></div>
           </div>
         </details>
-
         <button id="tombol" type="submit">Proses</button>
         <p id="galat_form" class="galat" hidden></p>
       </form>
     </section>
-
     <section class="kartu">
-      <h2>Riwayat</h2>
-      <ul id="riwayat" class="riwayat"></ul>
-      <p id="riwayat_kosong" class="redup">Belum ada video yang diproses.</p>
+      <h2>Antrean</h2>
+      <div class="gulir">
+        <table>
+          <thead><tr><th>Video</th><th>Model</th><th>Status</th><th class="kanan">Progres</th></tr></thead>
+          <tbody id="tabel_antrean"></tbody>
+        </table>
+      </div>
+      <p id="antrean_kosong" class="redup">Tidak ada video yang sedang diproses.</p>
+      <p class="redup">Video diproses satu per satu. Video baru tanpa cache deteksi berjalan sekitar 2–3 frame per detik.</p>
     </section>
-  </aside>
+  </div>
+</main>
 
-  <section class="utama">
-    <div id="kosong" class="kartu tengah">
-      <p>Pilih video lalu tekan <b>Proses</b>, atau buka salah satu hasil di Riwayat.</p>
+<!-- ================= Hasil ================= -->
+<main id="hal_hasil" class="halaman" hidden>
+  <section id="hasil_daftar" class="kartu">
+    <h2>Hasil</h2>
+    <div class="baris">
+      <div><label for="cari_nama">Nama video</label><input id="cari_nama" type="search" placeholder="cari…"></div>
+      <div><label for="cari_tanggal">Tanggal rekam</label><input id="cari_tanggal" type="date"></div>
+      <div><label for="cari_node">Node</label><select id="cari_node"></select></div>
     </div>
+    <div class="gulir" style="margin-top:12px">
+      <table>
+        <thead><tr><th>Waktu rekam</th><th>Nama video</th><th>Node</th><th>Model</th><th>Jenis</th><th>Status</th><th class="kanan">Total</th><th id="kepala_kelas"></th></tr></thead>
+        <tbody id="tabel_hasil"></tbody>
+      </table>
+    </div>
+    <p id="hasil_kosong" class="redup" hidden>Tidak ada hasil yang cocok.</p>
+  </section>
 
+  <div id="hasil_rinci" hidden>
+    <button id="kembali" class="kembali" type="button">← Semua hasil</button>
     <div id="berjalan" class="kartu" hidden>
       <h2 id="berjalan_judul"></h2>
       <p id="berjalan_tahap" class="redup"></p>
       <div class="batang" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div id="batang_isi"></div></div>
       <p id="berjalan_persen" class="redup"></p>
     </div>
-
     <div id="gagal" class="kartu" hidden>
       <h2 id="gagal_judul"></h2>
       <p class="galat">Pemrosesan gagal.</p>
       <pre id="gagal_pesan"></pre>
-      <button id="gagal_hapus" class="polos" type="button">Hapus dari riwayat</button>
+      <button id="gagal_hapus" class="polos" type="button">Hapus dari hasil</button>
     </div>
-
     <div id="hasil" hidden>
       <div class="kartu">
         <div class="baris_judul">
@@ -82,15 +211,12 @@
         <video id="pemutar" controls preload="metadata"></video>
         <p id="tanpa_video" class="redup" hidden>Video hasil tidak tersedia untuk pekerjaan ini.</p>
       </div>
-
       <div id="kartu_angka" class="angka"></div>
-
       <div class="kartu">
         <h2>Kendaraan per rentang waktu</h2>
         <div id="grafik"></div>
         <div id="legenda" class="legenda"></div>
       </div>
-
       <div class="kartu">
         <h2>Kendaraan yang dihitung</h2>
         <p class="redup">Klik baris untuk melompat ke saat kendaraan itu melintasi garis.</p>
@@ -103,7 +229,7 @@
         <p id="tabel_kosong" class="redup" hidden>Tidak ada kendaraan yang melintasi garis.</p>
       </div>
     </div>
-  </section>
+  </div>
 </main>
 <script src="aplikasi.js"></script>
 </body>

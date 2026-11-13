@@ -18,3 +18,5 @@ __pycache__/
 hasil/antarmuka/
 *.lama
 antarmuka/_lama/
+antarmuka/data/
+video_rekaman/

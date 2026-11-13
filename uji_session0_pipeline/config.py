@@ -151,3 +151,18 @@ CLASS_COLORS = {
 # ----------------------------------------------------------------------
 MEDIAN_X_M = 7.0           # batas dua arah (x dunia, meter)
 LINE_Y_AWAY_M = 85.0       # garis untuk kendaraan yang menjauh (meter dari kamera)
+
+# ----------------------------------------------------------------------
+# Profil kamera dari antarmuka web. Bila variabel lingkungan PROFIL_KAMERA berisi jalur berkas
+# JSON, nilai kalibrasi dan garis hitung di atas ditimpa oleh isi berkas itu (per kamera/node).
+# Tanpa variabel itu, config ini berlaku apa adanya.
+# ----------------------------------------------------------------------
+import os as _os
+_profil_kamera = _os.environ.get("PROFIL_KAMERA")
+if _profil_kamera and _os.path.exists(_profil_kamera):
+    import json as _json
+    with open(_profil_kamera, encoding="utf-8") as _f:
+        for _k, _v in _json.load(_f).items():
+            if _k in ("CALIB_XML", "PITCH_DEG", "CAM_HEIGHT_M", "FOCAL_PX", "LANE_HALF_WIDTH_M",
+                      "MAX_TRACK_DEPTH_M", "LINE_Y_DEFAULT_M", "LINE_Y_AWAY_M", "MEDIAN_X_M"):
+                globals()[_k] = _v
