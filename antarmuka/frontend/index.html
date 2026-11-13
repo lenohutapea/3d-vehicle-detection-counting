@@ -1,0 +1,110 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Penghitung Kendaraan 3D</title>
+<link rel="stylesheet" href="gaya.css">
+</head>
+<body>
+<header class="atas">
+  <div>
+    <h1>Penghitung Kendaraan 3D</h1>
+    <p class="sub">Deteksi kotak 3D, pelacakan, klasifikasi 4 kelas, dan penghitungan</p>
+  </div>
+  <div id="model" class="lencana"></div>
+</header>
+
+<div id="masalah" class="peringatan" hidden></div>
+
+<main class="tata">
+  <aside class="samping">
+    <section class="kartu">
+      <h2>Proses video</h2>
+      <form id="form">
+        <label for="video">Video di server</label>
+        <select id="video" name="video"></select>
+
+        <label for="berkas">atau unggah video</label>
+        <input id="berkas" name="berkas" type="file" accept=".mp4,.avi,.mov,.mkv,video/*">
+
+        <details>
+          <summary>Setelan</summary>
+          <div class="kisi2">
+            <div><label for="conf">Ambang deteksi</label><input id="conf" name="conf" type="number" step="0.05" min="0.05" max="0.95"></div>
+            <div><label for="conf_low">Ambang rendah</label><input id="conf_low" name="conf_low" type="number" step="0.05" min="0" max="0.9"></div>
+            <div><label for="line_y">Garis mendekat (m)</label><input id="line_y" name="line_y" type="number" step="1" min="5" max="200"></div>
+            <div><label for="line_y_away">Garis menjauh (m)</label><input id="line_y_away" name="line_y_away" type="number" step="1" min="5" max="200"></div>
+          </div>
+        </details>
+
+        <button id="tombol" type="submit">Proses</button>
+        <p id="galat_form" class="galat" hidden></p>
+      </form>
+    </section>
+
+    <section class="kartu">
+      <h2>Riwayat</h2>
+      <ul id="riwayat" class="riwayat"></ul>
+      <p id="riwayat_kosong" class="redup">Belum ada video yang diproses.</p>
+    </section>
+  </aside>
+
+  <section class="utama">
+    <div id="kosong" class="kartu tengah">
+      <p>Pilih video lalu tekan <b>Proses</b>, atau buka salah satu hasil di Riwayat.</p>
+    </div>
+
+    <div id="berjalan" class="kartu" hidden>
+      <h2 id="berjalan_judul"></h2>
+      <p id="berjalan_tahap" class="redup"></p>
+      <div class="batang" role="progressbar" aria-valuemin="0" aria-valuemax="100"><div id="batang_isi"></div></div>
+      <p id="berjalan_persen" class="redup"></p>
+    </div>
+
+    <div id="gagal" class="kartu" hidden>
+      <h2 id="gagal_judul"></h2>
+      <p class="galat">Pemrosesan gagal.</p>
+      <pre id="gagal_pesan"></pre>
+      <button id="gagal_hapus" class="polos" type="button">Hapus dari riwayat</button>
+    </div>
+
+    <div id="hasil" hidden>
+      <div class="kartu">
+        <div class="baris_judul">
+          <h2 id="hasil_judul"></h2>
+          <div class="aksi">
+            <a id="unduh_csv" class="tautan" download>Unduh CSV</a>
+            <button id="hasil_hapus" class="polos" type="button">Hapus</button>
+          </div>
+        </div>
+        <p id="hasil_info" class="redup"></p>
+        <video id="pemutar" controls preload="metadata"></video>
+        <p id="tanpa_video" class="redup" hidden>Video hasil tidak tersedia untuk pekerjaan ini.</p>
+      </div>
+
+      <div id="kartu_angka" class="angka"></div>
+
+      <div class="kartu">
+        <h2>Kendaraan per rentang waktu</h2>
+        <div id="grafik"></div>
+        <div id="legenda" class="legenda"></div>
+      </div>
+
+      <div class="kartu">
+        <h2>Kendaraan yang dihitung</h2>
+        <p class="redup">Klik baris untuk melompat ke saat kendaraan itu melintasi garis.</p>
+        <div class="gulir">
+          <table>
+            <thead><tr><th>Waktu</th><th>ID</th><th>Kelas</th><th>Arah</th><th class="kanan">Panjang (m)</th><th class="kanan">Skor kelas</th></tr></thead>
+            <tbody id="tabel"></tbody>
+          </table>
+        </div>
+        <p id="tabel_kosong" class="redup" hidden>Tidak ada kendaraan yang melintasi garis.</p>
+      </div>
+    </div>
+  </section>
+</main>
+<script src="aplikasi.js"></script>
+</body>
+</html>
