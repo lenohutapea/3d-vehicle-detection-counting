@@ -59,9 +59,13 @@ for x in np.arange(-half, half + 0.1, 5.0):
 for x in (-half, half):
     garis(piksel(x, z0), piksel(x, jauh), (0, 165, 255), 2)
 garis(piksel(median, z0), piksel(median, jauh), (255, 255, 0), 2)
-# garis hitung: mendekat (merah, kiri median), menjauh (ungu, kanan median)
-garis(piksel(-half, cfg.LINE_Y_DEFAULT_M), piksel(median, cfg.LINE_Y_DEFAULT_M), (0, 0, 255), 3)
-garis(piksel(median, away), piksel(half, away), (255, 0, 255), 3)
+# garis hitung: mendekat (merah), menjauh (ungu). Lajur kiri (Indonesia): menjauh di KIRI median.
+if getattr(cfg, "LAJUR", "kanan") == "kanan":
+    garis(piksel(-half, cfg.LINE_Y_DEFAULT_M), piksel(median, cfg.LINE_Y_DEFAULT_M), (0, 0, 255), 3)
+    garis(piksel(median, away), piksel(half, away), (255, 0, 255), 3)
+else:
+    garis(piksel(-half, away), piksel(median, away), (255, 0, 255), 3)
+    garis(piksel(median, cfg.LINE_Y_DEFAULT_M), piksel(half, cfg.LINE_Y_DEFAULT_M), (0, 0, 255), 3)
 # kotak mobil acuan di beberapa jarak
 tepi = [(0, 1), (1, 2), (2, 3), (3, 0), (4, 5), (5, 6), (6, 7), (7, 4), (0, 4), (1, 5), (2, 6), (3, 7)]
 for z in (jauh * 0.2, jauh * 0.4, jauh * 0.65):

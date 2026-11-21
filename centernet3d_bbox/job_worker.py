@@ -73,7 +73,7 @@ def muat_dari_disk():
 
 def _ringkas_status(st):
     return {k: st.get(k) for k in ("id", "nama_video", "sumber", "node", "model", "dibuat", "waktu_video", "status",
-                                   "tahap", "progres", "total", "per_kelas", "pemicu", "jalur")}
+                                   "tahap", "progres", "total", "per_kelas", "pemicu", "jalur", "kalibrasi")}
 
 
 def daftar_job():
@@ -112,8 +112,9 @@ def hapus_job(job_id):
     return "ok"
 
 
-def buat_job(sumber, node_id, model=None, conf=None, conf_low=None, pemicu=None):
+def buat_job(sumber, node_id, model=None, conf=None, conf_low=None, pemicu=None, kalibrasi=None):
     """sumber: 'contoh/<nama>' atau 'rekaman/<node>/<nama>'. Profil kamera diambil dari node_id.
+    kalibrasi: None = versi yang sedang dipakai node, "bawaan", atau nama versi dari riwayat.
     pemicu="otomatis" -> data/results/automatic, selain itu -> data/results/manual."""
     _cek_node(node_id)
     video = _sumber_video(sumber)
@@ -124,7 +125,7 @@ def buat_job(sumber, node_id, model=None, conf=None, conf_low=None, pemicu=None)
     s = {"conf": _angka(conf, b["conf"], 0.05, 0.95), "conf_low": _angka(conf_low, b["conf_low"], 0.0, 0.9)}
     if s["conf_low"] >= s["conf"]:
         raise Salah("Ambang rendah harus lebih kecil dari ambang deteksi (atau 0 untuk mematikan).")
-    p = calibration.profil(node_id)
+    p = calibration.profil_versi(node_id, kalibrasi)
     if p["mode"] == "xml" and not p["ada_xml"]:
         raise Salah("Profil kamera %s memakai berkas kalibrasi yang tidak ada. Buka halaman Kalibrasi." % node_id)
 
@@ -144,7 +145,9 @@ def buat_job(sumber, node_id, model=None, conf=None, conf_low=None, pemicu=None)
     st = {"id": job_id, "nama_video": os.path.basename(video), "sumber": sumber, "node": node_id, "model": model,
           "dibuat": time.strftime("%Y-%m-%d %H:%M:%S"), "waktu_video": waktu_video, "pemicu": pemicu, "jalur": jalur,
           "status": "antre", "tahap": "Menunggu giliran", "progres": 0.0, "setelan": s,
-          "garis": {"mendekat": p["LINE_Y_DEFAULT_M"], "menjauh": p["LINE_Y_AWAY_M"], "median": p["MEDIAN_X_M"]},
+          "kalibrasi": {"sumber": p["sumber_profil"], "versi": p["versi"]},
+          "garis": {"mendekat": p["LINE_Y_DEFAULT_M"], "menjauh": p["LINE_Y_AWAY_M"], "median": p["MEDIAN_X_M"],
+                    "lajur": p.get("LAJUR", "kiri")},
           "masukan": video, "cache": _jalur_cache(video, model), "pesan": ""}
     with _kunci:
         _jobs[job_id] = st
@@ -262,7 +265,8 @@ def _kerjakan(job_id):
         return
     try:
         shutil.copy(os.path.join(PIPELINE, cfg.COUNT_LOG), os.path.join(folder, "counting_log.csv"))
-        r = ringkas(os.path.join(folder, "counting_log.csv"), fps, n_frame, st["garis"]["median"])
+        r = ringkas(os.path.join(folder, "counting_log.csv"), fps, n_frame, st["garis"]["median"],
+                    st["garis"].get("lajur", "kanan"))
         _tulis_json(os.path.join(folder, "summary.json"), r)
     except Exception as e:
         _ubah(job_id, status="gagal", tahap="Gagal", pesan="Hasil tidak bisa dibaca: %s" % e)
@@ -273,8 +277,9 @@ def _kerjakan(job_id):
           ada_video=os.path.exists(os.path.join(folder, "result.mp4")))
 
 
-def ringkas(csv_path, fps, n_frame, median=None):
-    """Ringkas counting_log.csv: per kelas, per arah, per rentang waktu, dan daftar kendaraan."""
+def ringkas(csv_path, fps, n_frame, median=None, lajur="kiri"):
+    """Ringkas counting_log.csv: per kelas, per arah, per rentang waktu, dan daftar kendaraan.
+    lajur "kiri" (Indonesia): kiri median = menjauh; "kanan": kanan median = menjauh."""
     kelas = list(cfg.CLASSES)
     durasi = n_frame / fps if fps else 0.0
     langkah = next((x for x in (5, 10, 15, 30, 60, 120, 300, 600, 1800, 3600) if durasi / x <= 12), 3600)
@@ -290,7 +295,8 @@ def ringkas(csv_path, fps, n_frame, median=None):
                 continue
             fr, x = int(r["frame"]), float(r["x_m"])
             t = fr / fps if fps else 0.0
-            arah = "menjauh" if (median is not None and x >= median) else "mendekat"
+            kanan = median is not None and x >= median
+            arah = "menjauh" if (kanan if lajur == "kanan" else (median is not None and not kanan)) else "mendekat"
             per_kelas[k] += 1
             per_arah[arah] += 1
             waktu[min(int(t // langkah), n_bak - 1)][k] += 1

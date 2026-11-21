@@ -146,11 +146,22 @@ CLASS_COLORS = {
 
 # ----------------------------------------------------------------------
 # Garis counting kedua untuk jalur yang MENJAUH [heuristik, diukur dari video uji]
-# Kendaraan dengan x >= MEDIAN_X_M (kanan median) memakai LINE_Y_AWAY_M, sisanya LINE_Y_DEFAULT_M.
+# Sisi median yang MENJAUH bergantung pada LAJUR (lihat di bawah); sisi itu memakai LINE_Y_AWAY_M,
+# sisi lainnya (mendekat) memakai LINE_Y_DEFAULT_M.
 # Garis menjauh harus lebih jauh dari tempat jalur terluar mulai terlihat di tepi gambar.
 # ----------------------------------------------------------------------
 MEDIAN_X_M = 7.0           # batas dua arah (x dunia, meter)
 LINE_Y_AWAY_M = 85.0       # garis untuk kendaraan yang menjauh (meter dari kamera)
+# Arah lalu lintas. "kiri" = Indonesia (berjalan di lajur kiri): bila kamera menghadap sepanjang jalan,
+# kendaraan di KIRI median menjauh dan di KANAN median mendekat. "kanan" = Eropa/Amerika (kebalikannya).
+# Nilai di sini "kanan" karena data latihan session0_right direkam di Ceko; setiap node baru di antarmuka
+# web memakai "kiri" (Indonesia), lihat 1_camera_calibration/calibration.py.
+LAJUR = "kanan"
+
+
+def sisi_menjauh(x):
+    """True bila posisi lateral x (meter) berada di sisi median yang menjauh dari kamera."""
+    return x >= MEDIAN_X_M if LAJUR == "kanan" else x < MEDIAN_X_M
 
 # ----------------------------------------------------------------------
 # Profil kamera dari antarmuka web. Bila variabel lingkungan PROFIL_KAMERA berisi jalur berkas
@@ -164,5 +175,5 @@ if _profil_kamera and _os.path.exists(_profil_kamera):
     with open(_profil_kamera, encoding="utf-8") as _f:
         for _k, _v in _json.load(_f).items():
             if _k in ("CALIB_XML", "PITCH_DEG", "CAM_HEIGHT_M", "FOCAL_PX", "LANE_HALF_WIDTH_M",
-                      "MAX_TRACK_DEPTH_M", "LINE_Y_DEFAULT_M", "LINE_Y_AWAY_M", "MEDIAN_X_M"):
+                      "MAX_TRACK_DEPTH_M", "LINE_Y_DEFAULT_M", "LINE_Y_AWAY_M", "MEDIAN_X_M", "LAJUR"):
                 globals()[_k] = _v

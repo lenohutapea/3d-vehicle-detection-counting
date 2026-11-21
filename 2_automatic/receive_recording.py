@@ -7,17 +7,18 @@ Node menanyakan tugas tiap beberapa detik (node_tugas), merekam, lalu mengirim v
 Semua alamat /api/node/... wajib membawa token (X-Token) dari data/settings.json.
 Isi ini berasal dari layanan.py lama (bagian 4. node).
 """
-import hmac
 import time
 
 import auto_process
 import schedule
 import upload_video
+import cameras
 from settings import Salah, _cek_node, _kunci, _permintaan, _terlihat, setelan
 
 
-def token_sah(token):
-    return bool(token) and hmac.compare_digest(str(token), str(setelan()["token_node"]))
+def token_sah(token, node_id):
+    """Token khusus kamera (dibuat di halaman Kamera), atau token_node bersama untuk kamera lama."""
+    return cameras.token_sah(token, node_id)
 
 
 def node_tugas(node_id):

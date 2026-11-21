@@ -70,14 +70,16 @@ def draw_tracks(frame, tracker):
 
 
 def draw_counting_line(frame, line_y, line_y_away=None):
-    """Garis virtual di bidang jalan: kiri median pada line_y, kanan median pada line_y_away."""
+    """Garis virtual di bidang jalan: sisi mendekat pada line_y (merah), sisi menjauh pada line_y_away (ungu).
+    Sisi mana yang menjauh ditentukan cfg.LAJUR (kiri = Indonesia)."""
     h = frame.shape[0]
     half = cfg.LANE_HALF_WIDTH_M
     if line_y_away is None or line_y_away == line_y:
         segs = [(-half, half, line_y, (0, 0, 255))]
     else:
-        segs = [(-half, cfg.MEDIAN_X_M, line_y, (0, 0, 255)),
-                (cfg.MEDIAN_X_M, half, line_y_away, (255, 0, 255))]
+        kiri_z, kanan_z = (line_y, line_y_away) if cfg.LAJUR == "kanan" else (line_y_away, line_y)
+        segs = [(-half, cfg.MEDIAN_X_M, kiri_z, (0, 0, 255) if kiri_z == line_y else (255, 0, 255)),
+                (cfg.MEDIAN_X_M, half, kanan_z, (255, 0, 255) if kiri_z == line_y else (0, 0, 255))]
     for xa, xb, z, col in segs:
         p0 = world_to_image(np.array([xa, 0.0, z]), h)
         p1 = world_to_image(np.array([xb, 0.0, z]), h)

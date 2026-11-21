@@ -8,6 +8,7 @@
  "LINE_Y_AWAY_M": 85.0,
  "MEDIAN_X_M": 7.0,
  "mode": "xml",
- "CALIB_XML": "/home/angeleno/3d-vehicle-detection-counting/1_camera_calibration/xml/session0_right_calibParams.xml",
- "tersimpan": "2026-11-21 15:28:46"
+ "CALIB_XML": "xml/session0_right_calibParams.xml",
+ "tersimpan": "2026-11-21 15:28:46",
+ "LAJUR": "kanan"
 }

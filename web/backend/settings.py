@@ -21,9 +21,11 @@ ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)
 PIPELINE = os.environ.get("ANTARMUKA_PIPELINE", os.path.join(ROOT, "centernet3d_bbox", "pipeline"))
 KALIBRASI = os.path.join(ROOT, "1_camera_calibration")
 PROFIL_DIR = os.path.join(KALIBRASI, "camera_profiles")     # <node>.json
-XML_DIR = os.path.join(KALIBRASI, "xml")                    # <node>.xml (unggahan kalibrasi)
-JADWAL_FILE = os.path.join(ROOT, "2_automatic", "schedule.json")
+XML_DIR = os.path.join(KALIBRASI, "xml")                    # berkas kalibrasi bawaan (mis. session0_right)
+JADWAL_FILE = os.path.join(ROOT, "2_automatic", "schedule.json")    # jadwal BAWAAN (tidak pernah diubah server)
 DATA = os.environ.get("ANTARMUKA_DATA", os.path.join(ROOT, "data"))
+KAL_DATA = os.path.join(DATA, "calibration")                # calibration/<node>/active.json + riwayat
+JADWAL_DATA = os.path.join(DATA, "schedule")                # schedule/active.json + riwayat
 SETELAN_FILE = os.path.join(DATA, "settings.json")
 REKAMAN = os.path.join(DATA, "recordings")                  # recordings/<automatic|manual>/<node>/...
 HASIL = os.path.join(DATA, "results")                       # results/<automatic|manual>/<job>/...
@@ -35,6 +37,7 @@ PYTHON = sys.executable
 EKSTENSI = (".mp4", ".avi", ".mov", ".mkv")
 NODE_SAH = re.compile(r"^[A-Za-z0-9_\-]{1,40}$")
 NAMA_REKAMAN = re.compile(r"^(\d{8})_(\d{6})_(otomatis|manual)\.mp4$")
+VERSI_SAH = re.compile(r"^\d{8}_\d{6}(_\d+)?$")
 
 # keadaan bersama (dipakai beberapa modul; objeknya diubah isinya, tidak pernah diganti)
 _kunci = threading.RLock()
@@ -97,8 +100,9 @@ JADWAL_BAWAAN = {"video_per_hari": 6, "durasi_detik": 60, "jam_mulai": "06:00", 
 
 
 def setelan():
-    """Setelan tetap server (data/settings.json) + jadwal (2_automatic/schedule.json).
-    Dibuat sekali dengan nilai bawaan; ubah dengan menyunting berkasnya lalu mulai ulang server."""
+    """Setelan tetap server (data/settings.json) + jadwal yang berlaku.
+    Jadwal: data/schedule/active.json (diubah dari web) bila ada, selain itu jadwal bawaan
+    2_automatic/schedule.json. Berkas bawaan tidak pernah ditulis oleh server."""
     s = _baca_json(SETELAN_FILE)
     if s is None:
         s = {
@@ -109,33 +113,82 @@ def setelan():
                      {"id": "kamera1", "nama": "Kamera 1 (Raspberry Pi)"}],
         }
         _tulis_json(SETELAN_FILE, s)
-    j = _baca_json(JADWAL_FILE)
-    if j is None:
-        j = s.get("jadwal") or dict(JADWAL_BAWAAN)
-        _tulis_json(JADWAL_FILE, j)
     s = dict(s)
-    s["jadwal"] = j
+    aktif = _baca_json(os.path.join(JADWAL_DATA, "active.json"))
+    if aktif:
+        s["jadwal"], s["jadwal_sumber"] = aktif, "riwayat"
+    else:
+        s["jadwal"] = _baca_json(JADWAL_FILE) or s.get("jadwal") or dict(JADWAL_BAWAAN)
+        s["jadwal_sumber"] = "bawaan"
     return s
 
 
+# ---------------------------------------------------------------- versi (riwayat) JSON di data/
+def simpan_versi(folder, obj):
+    """Simpan obj sebagai versi baru <YYYYMMDD_HHMMSS>.json dan jadikan active.json.
+    Versi lama tidak pernah ditimpa, sehingga bisa dipakai lagi."""
+    os.makedirs(folder, exist_ok=True)
+    dasar = time.strftime("%Y%m%d_%H%M%S")
+    nama, i = dasar, 2
+    while os.path.exists(os.path.join(folder, nama + ".json")):
+        nama, i = "%s_%d" % (dasar, i), i + 1
+    obj = dict(obj, versi=nama)
+    _tulis_json(os.path.join(folder, nama + ".json"), obj)
+    _tulis_json(os.path.join(folder, "active.json"), obj)
+    return obj
+
+
+def daftar_versi(folder):
+    aktif = (_baca_json(os.path.join(folder, "active.json")) or {}).get("versi")
+    out = []
+    if os.path.isdir(folder):
+        for f in sorted(os.listdir(folder), reverse=True):
+            nama = f[:-5]
+            if f.endswith(".json") and VERSI_SAH.match(nama):
+                out.append({"versi": nama, "aktif": nama == aktif, "isi": _baca_json(os.path.join(folder, f), {})})
+    return out
+
+
+def pakai_versi(folder, versi):
+    p = os.path.join(folder, (versi or "") + ".json")
+    if not VERSI_SAH.match(versi or "") or not os.path.exists(p):
+        raise Salah("Versi tidak ditemukan: %s" % versi)
+    _tulis_json(os.path.join(folder, "active.json"), _baca_json(p))
+
+
+def kembali_bawaan(folder):
+    """Berhenti memakai versi dari riwayat (riwayatnya tetap disimpan)."""
+    p = os.path.join(folder, "active.json")
+    if os.path.exists(p):
+        os.remove(p)
+
+
 def _jalur_profil(node_id):
+    """Profil BAWAAN node (1_camera_calibration/camera_profiles, tidak pernah ditulis server)."""
     return os.path.join(PROFIL_DIR, node_id + ".json")
+
+
+def _jalur_profil_aktif(node_id):
+    """Profil hasil kalibrasi di web (data/calibration/<node>/active.json)."""
+    return os.path.join(KAL_DATA, node_id, "active.json")
 
 
 def _cek_node(node_id):
     if not node_id or not NODE_SAH.match(node_id) or node_id not in [n["id"] for n in setelan()["node"]]:
-        raise Salah("Node tidak dikenal: %s (daftarkan di data/settings.json)." % node_id)
+        raise Salah("Node tidak dikenal: %s (daftarkan di halaman Kamera)." % node_id)
     return node_id
 
 
 def daftar_node():
+    """Semua kamera (yang nonaktif juga, ditandai aktif=False)."""
     out = []
     for n in setelan()["node"]:
         t = _terlihat.get(n["id"])
         out.append({"id": n["id"], "nama": n.get("nama", n["id"]),
                     "terhubung": bool(t and time.time() - t < 20),
                     "terakhir": time.strftime("%Y-%m-%d %H:%M:%S", time.localtime(t)) if t else None,
-                    "ada_profil": os.path.exists(_jalur_profil(n["id"]))})
+                    "ada_profil": os.path.exists(_jalur_profil(n["id"])) or os.path.exists(_jalur_profil_aktif(n["id"])),
+                    "aktif": n.get("aktif", True), "jenis": n.get("jenis")})
     return out
 
 
@@ -193,6 +246,7 @@ def info():
         "contoh": daftar_contoh(),
         "node": daftar_node(),
         "jadwal": dict(s["jadwal"], jam=schedule.jadwal_harian()),
+        "jadwal_sumber": s["jadwal_sumber"],
         "berkas_setelan": SETELAN_FILE,
         "masalah": masalah,
     }

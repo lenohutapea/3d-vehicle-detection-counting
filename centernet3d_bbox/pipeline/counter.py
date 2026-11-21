@@ -39,8 +39,8 @@ class LineCounter:
         self._state = {}    # track.id -> _State
 
     def line_for(self, x):
-        """Garis yang berlaku untuk posisi lateral x (kanan median = garis menjauh)."""
-        return self.line_y_away if x >= cfg.MEDIAN_X_M else self.line_y
+        """Garis yang berlaku untuk posisi lateral x (sisi menjauh = garis menjauh, lihat cfg.LAJUR)."""
+        return self.line_y_away if cfg.sisi_menjauh(x) else self.line_y
 
     def total(self):
         return sum(self.counts.values())

@@ -3,7 +3,8 @@ app.py - server FastAPI untuk antarmuka web.
 
 Jalankan dengan ./run.sh, lalu buka http://127.0.0.1:8000 di peramban.
 Berkas ini hanya memetakan alamat web ke fungsi di tiga bagian utama:
-    /api/kamera/<node>/profil, /pratinjau    -> 1_camera_calibration/calibration.py
+    /api/kamera/<node>/profil, /pratinjau, /riwayat -> 1_camera_calibration/calibration.py
+    /api/jadwal                                -> 2_automatic/schedule.py
     /api/node/<node>/...  (Raspberry Pi)     -> 2_automatic/receive_recording.py
     /api/kamera/<node>/rekam, /api/permintaan -> 3_manual/manual_record.py
     /api/rekaman                               -> 3_manual/upload_video.py
@@ -28,10 +29,12 @@ from fastapi.responses import FileResponse, JSONResponse, Response              
 from fastapi.staticfiles import StaticFiles                                          # noqa: E402
 
 import calibration          # noqa: E402  UTAMA 1
+import cameras              # noqa: E402  kelola kamera (node)
 import job_worker           # noqa: E402  inti
 import manual_process       # noqa: E402  UTAMA 3
 import manual_record        # noqa: E402  UTAMA 3
 import receive_recording    # noqa: E402  UTAMA 2
+import schedule             # noqa: E402  UTAMA 2
 import settings             # noqa: E402
 import upload_video         # noqa: E402  UTAMA 3
 
@@ -62,15 +65,65 @@ async def _masukan_salah(_request, exc):
     return JSONResponse({"detail": str(exc)}, status_code=400)
 
 
-def _cek_token(token):
-    if not receive_recording.token_sah(token):
-        raise HTTPException(status_code=401, detail="Token node salah.")
+def _cek_token(token, node_id):
+    if not receive_recording.token_sah(token, node_id):
+        raise HTTPException(status_code=401, detail="Token kamera salah, atau kamera dinonaktifkan.")
+
+
+def _hanya_server(request: Request):
+    """Mengelola kamera dan melihat token hanya boleh dari komputer server, bukan lewat internet."""
+    asal = request.client.host if request.client else ""
+    if asal not in LOKAL or request.headers.get("cf-ray"):
+        raise HTTPException(status_code=403, detail="Hanya bisa dari komputer server (buka http://127.0.0.1:8000 di server).")
 
 
 # ---------------------------------------------------------------- umum
 @app.get("/api/info")
 def info():
     return settings.info()
+
+
+# ---------------------------------------------------------------- kelola kamera (node)
+@app.get("/api/kamera")
+def kamera_daftar():
+    return cameras.daftar()
+
+
+@app.post("/api/kamera")
+def kamera_tambah(request: Request, id: str = Form(""), nama: str = Form(""), jenis: str = Form("pi"),
+                  catatan: str = Form("")):
+    _hanya_server(request)
+    return cameras.tambah({"id": id, "nama": nama, "jenis": jenis, "catatan": catatan})
+
+
+@app.post("/api/kamera/{node_id}")
+async def kamera_ubah(node_id: str, request: Request):
+    _hanya_server(request)
+    form = await request.form()
+    return cameras.ubah(node_id, {k: v for k, v in form.items() if k in ("nama", "catatan", "jenis", "aktif")})
+
+
+@app.delete("/api/kamera/{node_id}")
+def kamera_hapus(node_id: str, request: Request):
+    _hanya_server(request)
+    return cameras.hapus(node_id)
+
+
+@app.get("/api/kamera/{node_id}/token")
+def kamera_token(node_id: str, request: Request):
+    _hanya_server(request)
+    return cameras.token(node_id)
+
+
+@app.post("/api/kamera/{node_id}/token")
+def kamera_token_baru(node_id: str, request: Request):
+    _hanya_server(request)
+    return cameras.token_baru(node_id)
+
+
+@app.get("/api/kamera/{node_id}/program")
+def kamera_program(node_id: str):
+    return FileResponse(cameras.PROGRAM, media_type="text/x-python", filename="node_camera.py")
 
 
 # ---------------------------------------------------------------- UTAMA 1: kalibrasi kamera
@@ -105,6 +158,53 @@ async def pratinjau(node_id: str, request: Request):
     return Response(content=gambar, media_type="image/jpeg")
 
 
+@app.post("/api/kamera/{node_id}/kalibrasi-klik")
+async def kalibrasi_klik(node_id: str, request: Request):
+    try:
+        data = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Data kalibrasi klik tidak terbaca.")
+    return calibration.kalibrasi_klik(node_id, data)
+
+
+@app.get("/api/kamera/{node_id}/riwayat")
+def riwayat_kalibrasi(node_id: str):
+    return calibration.riwayat(node_id)
+
+
+@app.post("/api/kamera/{node_id}/riwayat/{versi}")
+def pakai_kalibrasi(node_id: str, versi: str):
+    return calibration.pakai(node_id, versi)
+
+
+@app.post("/api/kamera/{node_id}/bawaan")
+def kalibrasi_bawaan(node_id: str):
+    return calibration.ke_bawaan(node_id)
+
+
+# ---------------------------------------------------------------- UTAMA 2: jadwal otomatis
+@app.get("/api/jadwal")
+def jadwal():
+    return schedule.info_jadwal()
+
+
+@app.post("/api/jadwal")
+def simpan_jadwal(video_per_hari: str = Form(...), durasi_detik: str = Form(...), jam_mulai: str = Form(...),
+                  jam_selesai: str = Form(...)):
+    return schedule.simpan_jadwal({"video_per_hari": video_per_hari, "durasi_detik": durasi_detik,
+                                   "jam_mulai": jam_mulai, "jam_selesai": jam_selesai})
+
+
+@app.post("/api/jadwal/riwayat/{versi}")
+def pakai_jadwal(versi: str):
+    return schedule.pakai_jadwal(versi)
+
+
+@app.post("/api/jadwal/bawaan")
+def jadwal_bawaan():
+    return schedule.jadwal_bawaan()
+
+
 # ---------------------------------------------------------------- UTAMA 3: rekaman manual & unggah
 @app.get("/api/rekaman")
 def rekaman(node: str = ""):
@@ -135,14 +235,14 @@ def permintaan(node: str = ""):
 # ---------------------------------------------------------------- UTAMA 2: untuk Raspberry Pi (wajib token)
 @app.get("/api/node/{node_id}/tugas")
 def node_tugas(node_id: str, x_token: str = Header("")):
-    _cek_token(x_token)
+    _cek_token(x_token, node_id)
     return receive_recording.node_tugas(node_id)
 
 
 @app.post("/api/node/{node_id}/rekaman")
 def node_unggah(node_id: str, berkas: UploadFile = File(...), mode: str = Form(...), slot: str = Form(""),
                 id_permintaan: str = Form(""), x_token: str = Header("")):
-    _cek_token(x_token)
+    _cek_token(x_token, node_id)
     return receive_recording.node_unggah(node_id, berkas.file, mode, slot, id_permintaan,
                                          berkas.filename or "rekaman.mp4")
 
@@ -155,8 +255,8 @@ def daftar():
 
 @app.post("/api/jobs")
 def buat(sumber: str = Form(...), node: str = Form(...), model: str = Form(""), conf: str = Form(""),
-         conf_low: str = Form("")):
-    return manual_process.proses(sumber, node, model or None, conf, conf_low)
+         conf_low: str = Form(""), kalibrasi: str = Form("")):
+    return manual_process.proses(sumber, node, model or None, conf, conf_low, kalibrasi or None)
 
 
 @app.get("/api/jobs/{job_id}")

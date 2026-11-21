@@ -4,7 +4,7 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Penghitung Kendaraan 3D</title>
-<link rel="stylesheet" href="style.css">
+<link rel="stylesheet" href="style.css?v=7">
 </head>
 <body>
 <header class="atas">
@@ -15,6 +15,7 @@
 </header>
 <nav class="nav" aria-label="Halaman">
   <a href="#/rekam" data-hal="rekam">Pengambilan video</a>
+  <a href="#/kamera" data-hal="kamera">Kamera</a>
   <a href="#/kalibrasi" data-hal="kalibrasi">Kalibrasi kamera</a>
   <a href="#/proses" data-hal="proses">Proses</a>
   <a href="#/hasil" data-hal="hasil">Hasil</a>
@@ -39,7 +40,25 @@
           <dt>Rentang jam</dt><dd id="jadwal_rentang"></dd>
         </dl>
         <ul id="jadwal_jam" class="jam"></ul>
-        <p class="redup">Jadwal ini tetap dan tidak bisa diubah dari halaman. Rekaman otomatis langsung diproses. Berkas setelan: <code id="jadwal_berkas"></code></p>
+        <p id="jadwal_sumber" class="redup"></p>
+        <details id="jadwal_ubah" style="margin-top:8px">
+          <summary class="tautan" style="cursor:pointer">Ubah jadwal</summary>
+          <form id="form_jadwal" class="baris">
+            <div><label for="j_n">Video per hari</label><input id="j_n" type="number" min="0" max="48" step="1" required></div>
+            <div><label for="j_durasi">Durasi (detik)</label><input id="j_durasi" type="number" min="5" max="1800" step="5" required></div>
+            <div><label for="j_mulai">Jam mulai</label><input id="j_mulai" type="time" required></div>
+            <div><label for="j_selesai">Jam selesai</label><input id="j_selesai" type="time" required></div>
+            <button class="utamakan" type="submit">Simpan jadwal</button>
+          </form>
+          <p class="redup">Bila node mengirim lewat Cloudflare, durasi sebaiknya paling lama sekitar 60 detik (batas unggah 100 MB).</p>
+          <p id="jadwal_pesan" class="galat" hidden></p>
+          <p id="jadwal_ok" class="berhasil" hidden></p>
+          <label>Riwayat jadwal</label>
+          <ul id="jadwal_riwayat" class="riwayat"></ul>
+          <p id="jadwal_riwayat_kosong" class="redup">Belum ada perubahan jadwal dari halaman ini.</p>
+          <button id="jadwal_bawaan" class="polos" type="button" style="margin-top:8px">Kembali ke jadwal bawaan</button>
+        </details>
+        <p class="redup">Rekaman otomatis langsung diproses. Jadwal bawaan (2_automatic/schedule.json) tidak pernah diubah; perubahan dari halaman ini disimpan di data/schedule/.</p>
       </section>
       <section class="kartu">
         <h2>Pengambilan manual</h2>
@@ -71,62 +90,352 @@
   </div>
 </main>
 
+<!-- ================= Kamera ================= -->
+<main id="hal_kamera" class="halaman" hidden>
+  <div class="kepala_hal">
+    <div>
+      <h2 class="judul_hal">Kamera</h2>
+      <p class="redup">Setiap kamera di lapangan adalah satu node. Daftarkan di sini, jalankan perintah di perangkatnya, lalu kalibrasi.</p>
+    </div>
+    <button id="tambah_kamera" class="utamakan besar" type="button">
+      <svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><path d="M12 5v14"></path><path d="M5 12h14"></path></svg>
+      Tambah kamera
+    </button>
+  </div>
+  <p id="kam_pesan" class="galat" hidden></p>
+  <div class="dua lebar">
+    <section class="kartu" aria-labelledby="kd">
+      <div class="baris_judul"><h2 id="kd">Daftar kamera</h2><span id="kam_ringkas" class="redup"></span></div>
+      <div id="kam_daftar" class="daftar_kamera"></div>
+    </section>
+
+    <div id="kam_rinci" class="kolom">
+      <section class="kartu" aria-labelledby="kr_nama">
+        <div class="baris_judul">
+          <div>
+            <h2 id="kr_nama" class="judul_besar"></h2>
+            <span id="kr_status" class="status_teks"></span>
+          </div>
+          <button id="kr_ubah_nama" class="polos" type="button">Ubah nama</button>
+        </div>
+        <div class="tiga_angka kiri">
+          <div><span>ID kamera</span><strong id="kr_id" class="mono"></strong><small>Tetap, tidak bisa diubah</small></div>
+          <div><span>Perangkat</span><strong id="kr_jenis"></strong><small id="kr_jenis_ket"></small></div>
+          <div><span>Kalibrasi</span><strong id="kr_kal"></strong><a id="kr_kal_link" href="#/kalibrasi" class="tautan kecil">Kalibrasi sekarang</a></div>
+        </div>
+        <p id="kr_catatan" class="redup"></p>
+      </section>
+
+      <section id="kr_hub" class="kartu kartu_aktif" aria-labelledby="kh">
+        <h2 id="kh">Hubungkan perangkat</h2>
+        <p class="redup">Jalankan perintah ini di Raspberry Pi yang terpasang di lokasi. Perangkat menanyakan tugas ke server setiap 5 detik.</p>
+        <ol class="langkah_hub">
+          <li><span class="bulat">1</span><div><strong>Salin program ke perangkat</strong>
+            <span class="redup">Berkas <code>node_camera.py</code> ada di folder <code>centernet3d_bbox/node/</code>.</span>
+            <a id="kr_unduh" class="polos tombol_a" href="#" download="node_camera.py">Unduh node_camera.py</a></div></li>
+          <li><span class="bulat">2</span><div><strong>Jalankan perintah sesuai jenis kamera</strong>
+            <div class="segmen kecil_segmen" role="radiogroup" aria-label="Jenis kamera">
+              <label><input type="radio" name="kr_jenis_cmd" value="pi"><span>Raspberry Pi Camera</span></label>
+              <label><input type="radio" name="kr_jenis_cmd" value="ip"><span>IP camera (RTSP)</span></label>
+            </div>
+            <label for="kr_server">Alamat server yang dihubungi perangkat</label>
+            <input id="kr_server" type="text" placeholder="https://domain-anda" aria-describedby="kr_server_ket">
+            <span id="kr_server_ket" class="redup kecil">Alamat yang bisa dijangkau perangkat, misalnya domain Cloudflare Anda. Bukan 127.0.0.1.</span>
+            <div id="kr_rtsp_wadah">
+              <label for="kr_rtsp">Alamat RTSP kamera</label>
+              <input id="kr_rtsp" type="text" class="mono" value="rtsp://USER:PASS@192.168.1.64:554/stream1" aria-describedby="kr_rtsp_ket">
+              <span id="kr_rtsp_ket" class="redup kecil">Lihat di manual atau aplikasi kamera. Hanya dipakai untuk menyusun perintah, tidak disimpan di server.</span>
+            </div>
+            <div class="kode">
+              <pre id="kr_perintah"></pre>
+              <button id="kr_salin" type="button">
+                <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="11" height="11" rx="2"></rect><path d="M5 15V5a2 2 0 0 1 2-2h10"></path></svg>
+                <span id="kr_salin_teks">Salin</span>
+              </button>
+            </div>
+          </div></li>
+          <li><span class="bulat">3</span><div><strong>Tunggu status berubah menjadi “Terhubung”</strong>
+            <span class="redup">Biasanya kurang dari 10 detik. Agar berjalan otomatis saat perangkat menyala, pasang juga layanan <code>node-camera.service</code>.</span></div></li>
+        </ol>
+      </section>
+
+      <section id="kr_tok" class="kartu" aria-labelledby="kt">
+        <h2 id="kt">Token kamera</h2>
+        <div class="baris_tombol">
+          <span id="kr_token" class="kotak_token mono"></span>
+          <button id="kr_tampil" class="polos besar" type="button">Tampilkan</button>
+          <button id="kr_token_baru" class="polos besar" type="button">Buat token baru</button>
+        </div>
+        <p id="kr_token_ket" class="redup"></p>
+        <p id="kr_token_pesan" class="galat" hidden></p>
+      </section>
+
+      <section id="kr_data" class="kartu" hidden>
+        <h2>Data latihan</h2>
+        <p class="redup">Kamera ini berisi video data latihan (BrnoCompSpeed) dan tidak memerlukan perangkat.</p>
+      </section>
+
+      <section class="kartu kartu_bahaya" aria-labelledby="kb">
+        <div class="baris_judul">
+          <div><h2 id="kb">Nonaktifkan atau hapus kamera</h2>
+            <span class="redup">Rekaman, hasil, dan riwayat kalibrasi kamera ini tetap tersimpan di folder data.</span></div>
+          <div class="baris_tombol">
+            <button id="kr_aktif" class="polos besar" type="button">Nonaktifkan</button>
+            <button id="kr_hapus" class="polos besar merah" type="button">Hapus dari daftar</button>
+          </div>
+        </div>
+      </section>
+    </div>
+  </div>
+
+  <dialog id="dlg_tambah" class="dialog sempit" aria-labelledby="tk_judul">
+    <form id="form_tambah" novalidate>
+      <div class="kepala_dialog">
+        <div><h2 id="tk_judul">Tambah kamera</h2><p class="redup">Kamera langsung muncul di semua halaman. Tidak perlu memulai ulang server.</p></div>
+        <button type="button" id="tk_tutup" class="tutup" aria-label="Tutup"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button>
+      </div>
+      <label for="tk_nama" class="label_tebal">Nama kamera</label>
+      <input id="tk_nama" type="text" maxlength="80" placeholder="Kamera 2 · Simpang Laguboti" aria-describedby="tk_nama_ket">
+      <span id="tk_nama_ket" class="redup kecil">Nama yang mudah dikenali, biasanya lokasi. Bisa diubah kapan saja.</span>
+      <label for="tk_id" class="label_tebal">ID kamera</label>
+      <div class="satuan"><input id="tk_id" type="text" class="mono" maxlength="40" aria-describedby="tk_id_ket"><span id="tk_id_status"></span></div>
+      <span id="tk_id_ket" class="redup kecil">Dipakai sebagai nama folder data dan di perintah perangkat. Hanya huruf kecil, angka, <code>_</code> dan <code>-</code>. <strong>Tidak bisa diubah setelah disimpan.</strong></span>
+      <fieldset class="pilih_kartu">
+        <legend class="label_tebal">Jenis kamera</legend>
+        <label><input type="radio" name="tk_jenis" value="pi" checked><span><strong>Raspberry Pi Camera</strong><small>Modul kamera dipasang langsung ke Raspberry Pi.</small></span></label>
+        <label><input type="radio" name="tk_jenis" value="ip"><span><strong>IP camera (RTSP)</strong><small>CCTV jaringan, direkam lewat Raspberry Pi atau server.</small></span></label>
+      </fieldset>
+      <label for="tk_catatan" class="label_tebal">Catatan lokasi <span class="redup">(opsional)</span></label>
+      <textarea id="tk_catatan" rows="2" maxlength="300" placeholder="Lantai 2 rumah putih, menghadap ke arah Balige, tinggi sekitar 6 m."></textarea>
+      <p class="kotak_info">Setelah disimpan: token khusus kamera ini dibuat, dan Anda langsung diarahkan ke langkah <strong>Hubungkan perangkat</strong>.</p>
+      <p id="tk_pesan" class="galat" hidden></p>
+      <div class="kaki_dialog">
+        <button type="button" id="tk_batal" class="polos besar">Batal</button>
+        <button type="submit" class="utamakan besar">Tambah kamera</button>
+      </div>
+    </form>
+  </dialog>
+</main>
+
 <!-- ================= Kalibrasi kamera ================= -->
 <main id="hal_kalibrasi" class="halaman" hidden>
-  <div class="dua">
-    <form id="form_kal" class="kolom">
-      <section class="kartu">
-        <h2>Profil kamera</h2>
-        <label for="kal_node">Node</label>
+  <div class="kepala_hal">
+    <div>
+      <h2 class="judul_hal">Kalibrasi kamera</h2>
+      <p class="redup">Cocokkan kamera dengan jalan, supaya posisi dan ukuran kendaraan terbaca dalam meter. Cukup klik marka jalan di gambar dan isi dua ukuran yang diukur di lokasi.</p>
+    </div>
+    <ol class="tahap" aria-label="Tahap kalibrasi">
+      <li id="tahap1"><span class="bulat">1</span>Pilih kamera</li>
+      <li id="tahap2"><span class="bulat">2</span>Tandai jalan</li>
+      <li id="tahap3"><span class="bulat">3</span>Garis hitung</li>
+      <li id="tahap4"><span class="bulat">4</span>Simpan</li>
+    </ol>
+  </div>
+  <div class="dua lebar">
+    <form id="form_kal" class="kolom" novalidate>
+      <section class="kartu" aria-labelledby="k1">
+        <div class="kepala_langkah"><span class="nomor" id="nomor1">1</span><h2 id="k1">Kamera dan video</h2></div>
+        <label for="kal_node">Kamera (node)</label>
         <select id="kal_node"></select>
         <p id="kal_tersimpan" class="redup"></p>
         <label for="kal_sumber">Video untuk pratinjau</label>
         <select id="kal_sumber"></select>
-        <label for="kal_posisi">Posisi frame</label>
-        <input id="kal_posisi" type="range" min="0" max="1" step="0.01" value="0.3">
+        <p class="redup">Pilih video saat jalan terlihat jelas dan tidak terlalu ramai.</p>
       </section>
-      <section class="kartu">
-        <h2>Kalibrasi</h2>
-        <div class="pilihan" role="radiogroup" aria-label="Cara kalibrasi">
-          <label><input type="radio" name="mode" value="nilai"> Atur nilai</label>
-          <label><input type="radio" name="mode" value="xml"> Berkas kalibrasi</label>
+
+      <section class="kartu kartu_aktif" id="kartu2" aria-labelledby="k2">
+        <div class="kepala_langkah">
+          <span class="nomor" id="nomor2">2</span><h2 id="k2">Tandai jalan</h2>
+          <button type="button" id="buka_panduan" class="tombol_tautan">
+            <svg aria-hidden="true" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><path d="M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3"></path><path d="M12 17h.01"></path></svg>
+            Cara menandai
+          </button>
         </div>
+        <div class="segmen" role="radiogroup" aria-label="Cara kalibrasi">
+          <label><input type="radio" name="mode" value="klik"><span>Klik pada gambar</span></label>
+          <label><input type="radio" name="mode" value="nilai"><span>Atur nilai</span></label>
+        </div>
+
+        <div id="kal_klik">
+          <p class="redup">Klik di gambar pratinjau pada bagian jalan yang <strong>lurus dan datar</strong>. Sudut, tinggi, dan focal kamera dihitung otomatis.</p>
+          <ol class="langkah_klik">
+            <li class="baris_langkah" data-baris="A">
+              <span class="lencana_l l_a" aria-hidden="true">A</span>
+              <div class="isi_l">
+                <div class="judul_l"><strong>Garis A</strong><span id="status_A" class="chip"></span></div>
+                <span id="ket_A" class="redup">Satu marka yang <strong>memanjang searah jalan</strong>, misalnya garis tepi putih kiri. Klik satu titik dekat (bawah gambar) dan satu titik jauh.</span>
+                <button type="button" class="polos kecil" data-langkah="A">Tandai garis A</button>
+              </div>
+            </li>
+            <li class="baris_langkah" data-baris="B">
+              <span class="lencana_l l_b" aria-hidden="true">B</span>
+              <div class="isi_l">
+                <div class="judul_l"><strong>Garis B</strong><span id="status_B" class="chip"></span></div>
+                <span id="ket_B" class="redup">Marka lain yang <strong>sejajar</strong> dengan garis A, sebaiknya berjauhan, misalnya garis tepi putih kanan.</span>
+                <button type="button" class="polos kecil" data-langkah="B">Tandai garis B</button>
+              </div>
+            </li>
+            <li class="baris_langkah baris_isian">
+              <label for="klik_lebar" class="label_tebal">Jarak nyata garis A ke garis B</label>
+              <div class="satuan"><input id="klik_lebar" type="number" min="0.5" max="100" step="any" value="3.5" aria-describedby="klik_lebar_ket"><span>meter</span></div>
+              <span id="klik_lebar_ket" class="redup">Ukur dengan meteran, tegak lurus jalan. Untuk garis tepi kiri dan kanan, ini sama dengan lebar jalan.</span>
+            </li>
+            <li class="baris_langkah" data-baris="P">
+              <span class="lencana_l l_p" aria-hidden="true">P</span>
+              <div class="isi_l">
+                <div class="judul_l"><strong>Panjang</strong><span id="status_P" class="chip"></span></div>
+                <span id="ket_P" class="redup">Dua titik <strong>searah jalan</strong> yang jaraknya diketahui, misalnya ujung awal dua marka putus-putus berurutan.</span>
+                <button type="button" class="polos kecil" data-langkah="P">Tandai panjang</button>
+                <label for="klik_panjang" class="label_tebal">Jarak nyata kedua titik</label>
+                <div class="satuan"><input id="klik_panjang" type="number" min="0.5" max="500" step="any" value="12" aria-describedby="klik_panjang_ket"><span>meter</span></div>
+                <span id="klik_panjang_ket" class="redup">Panjang satu marka ditambah celahnya. Pilih jarak 10–30 m bila bisa.</span>
+              </div>
+            </li>
+          </ol>
+          <div class="baris_tombol">
+            <button id="klik_hitung" class="utamakan besar" type="button">Hitung kalibrasi</button>
+            <button id="klik_ulang" class="polos besar" type="button">Ulangi klik</button>
+          </div>
+          <p id="klik_pesan" class="galat" hidden></p>
+          <div id="hasil_klik" class="tiga_angka" aria-label="Hasil perhitungan" hidden>
+            <div><span>Tinggi kamera</span><strong id="h_tinggi"></strong></div>
+            <div><span>Sudut tunduk</span><strong id="h_sudut"></strong></div>
+            <div><span>Focal</span><strong id="h_focal"></strong></div>
+          </div>
+          <p id="klik_hasil" class="berhasil" hidden></p>
+        </div>
+
         <div id="kal_nilai">
+          <p class="redup">Isi bila sudut, tinggi, dan focal kamera sudah diketahui. Geser sambil melihat pratinjau sampai kisi sejajar marka jalan.</p>
           <label for="PITCH_DEG">Sudut tunduk kamera (derajat)</label>
-          <div class="geser"><input type="range" data-untuk="PITCH_DEG" min="0" max="60" step="0.1"><input id="PITCH_DEG" name="PITCH_DEG" type="number" step="0.1"></div>
+          <div class="geser"><input type="range" data-untuk="PITCH_DEG" min="0" max="60" step="0.1"><input id="PITCH_DEG" name="PITCH_DEG" type="number" step="any"></div>
           <label for="CAM_HEIGHT_M">Tinggi kamera (m)</label>
-          <div class="geser"><input type="range" data-untuk="CAM_HEIGHT_M" min="2" max="30" step="0.05"><input id="CAM_HEIGHT_M" name="CAM_HEIGHT_M" type="number" step="0.05"></div>
+          <div class="geser"><input type="range" data-untuk="CAM_HEIGHT_M" min="2" max="30" step="0.05"><input id="CAM_HEIGHT_M" name="CAM_HEIGHT_M" type="number" step="any"></div>
           <label for="FOCAL_PX">Focal length (piksel)</label>
-          <div class="geser"><input type="range" data-untuk="FOCAL_PX" min="300" max="6000" step="5"><input id="FOCAL_PX" name="FOCAL_PX" type="number" step="5"></div>
+          <div class="geser"><input type="range" data-untuk="FOCAL_PX" min="300" max="6000" step="5"><input id="FOCAL_PX" name="FOCAL_PX" type="number" step="any"></div>
         </div>
-        <div id="kal_xml" hidden>
-          <label for="xml">Berkas kalibrasi (XML: f, h, vanishPoints)</label>
-          <input id="xml" name="xml" type="file" accept=".xml,text/xml">
-          <p id="kal_xml_ket" class="redup"></p>
+
+        <details id="kal_lanjutan" class="lanjutan">
+          <summary>Lanjutan: impor berkas kalibrasi (dataset BrnoCompSpeed)</summary>
+          <p class="redup">Hanya untuk dataset yang menyertakan berkas kalibrasi XML. Kamera sendiri tidak memerlukannya.</p>
+          <div class="pilihan"><label><input type="radio" name="mode" value="xml"> Pakai berkas kalibrasi</label></div>
+          <div id="kal_xml" hidden>
+            <label for="xml">Berkas kalibrasi (XML: f, h, vanishPoints)</label>
+            <input id="xml" name="xml" type="file" accept=".xml,text/xml">
+            <p id="kal_xml_ket" class="redup"></p>
+          </div>
+        </details>
+      </section>
+
+      <section class="kartu" aria-labelledby="k3">
+        <div class="kepala_langkah"><span class="nomor" id="nomor3">3</span><h2 id="k3">Jalur dan garis hitung</h2></div>
+        <p id="kal_lajur" class="kotak_kuning"></p>
+        <div class="kisi2 rapat">
+          <div class="penuh">
+            <label for="MEDIAN_X_M"><span class="garis_warna w_median" aria-hidden="true"></span>Median · batas dua arah (m)</label>
+            <input id="MEDIAN_X_M" name="MEDIAN_X_M" type="number" step="any">
+            <span class="redup kecil">Geser sampai garis sian berada tepat di atas marka tengah jalan.</span>
+          </div>
+          <div>
+            <label for="LINE_Y_DEFAULT_M"><span class="garis_warna w_dekat" aria-hidden="true"></span>Garis mendekat (m)</label>
+            <input id="LINE_Y_DEFAULT_M" name="LINE_Y_DEFAULT_M" type="number" step="any">
+            <span id="ket_dekat" class="redup kecil"></span>
+          </div>
+          <div>
+            <label for="LINE_Y_AWAY_M"><span class="garis_warna w_jauh" aria-hidden="true"></span>Garis menjauh (m)</label>
+            <input id="LINE_Y_AWAY_M" name="LINE_Y_AWAY_M" type="number" step="any">
+            <span id="ket_jauh" class="redup kecil"></span>
+          </div>
+          <div>
+            <label for="LANE_HALF_WIDTH_M"><span class="garis_warna w_batas" aria-hidden="true"></span>Setengah lebar jalur (m)</label>
+            <input id="LANE_HALF_WIDTH_M" name="LANE_HALF_WIDTH_M" type="number" step="any">
+            <span class="redup kecil">Kendaraan di luar garis jingga diabaikan.</span>
+          </div>
+          <div>
+            <label for="MAX_TRACK_DEPTH_M">Jarak terjauh (m)</label>
+            <input id="MAX_TRACK_DEPTH_M" name="MAX_TRACK_DEPTH_M" type="number" step="any">
+            <span class="redup kecil">Kendaraan lebih jauh tidak dilacak.</span>
+          </div>
         </div>
       </section>
-      <section class="kartu">
-        <h2>Jalur dan garis hitung</h2>
-        <div class="kisi2">
-          <div><label for="LINE_Y_DEFAULT_M">Garis mendekat (m)</label><input id="LINE_Y_DEFAULT_M" name="LINE_Y_DEFAULT_M" type="number" step="1"></div>
-          <div><label for="LINE_Y_AWAY_M">Garis menjauh (m)</label><input id="LINE_Y_AWAY_M" name="LINE_Y_AWAY_M" type="number" step="1"></div>
-          <div><label for="MEDIAN_X_M">Median, batas dua arah (m)</label><input id="MEDIAN_X_M" name="MEDIAN_X_M" type="number" step="0.5"></div>
-          <div><label for="LANE_HALF_WIDTH_M">Setengah lebar jalur (m)</label><input id="LANE_HALF_WIDTH_M" name="LANE_HALF_WIDTH_M" type="number" step="0.5"></div>
-          <div><label for="MAX_TRACK_DEPTH_M">Jarak terjauh (m)</label><input id="MAX_TRACK_DEPTH_M" name="MAX_TRACK_DEPTH_M" type="number" step="5"></div>
-        </div>
-        <button id="kal_simpan" class="utamakan" type="submit" style="margin-top:14px;width:100%">Simpan profil</button>
+
+      <section class="kartu" aria-labelledby="k4">
+        <div class="kepala_langkah"><span class="nomor" id="nomor4">4</span><h2 id="k4">Simpan</h2></div>
+        <button id="kal_simpan" class="utamakan besar penuh_lebar" type="submit">Simpan sebagai versi baru</button>
         <p id="kal_pesan" class="galat" hidden></p>
         <p id="kal_ok" class="berhasil" hidden></p>
+        <p class="redup">Versi lama tidak dihapus. Rekaman otomatis memakai versi yang sedang dipakai. Profil bawaan di folder 1_camera_calibration tidak pernah diubah.</p>
+        <label>Riwayat kalibrasi</label>
+        <ul id="kal_riwayat" class="daftar_versi"></ul>
+        <p id="kal_riwayat_kosong" class="redup">Belum ada kalibrasi yang disimpan untuk kamera ini.</p>
+        <button id="kal_bawaan" class="polos" type="button">Kembali ke profil bawaan</button>
+        <p id="kal_riwayat_pesan" class="galat" hidden></p>
       </section>
     </form>
-    <section class="kartu">
-      <h2>Pratinjau</h2>
-      <img id="pratinjau_gbr" alt="Frame video dengan kisi jalan, garis hitung, dan kotak mobil acuan">
+
+    <section class="kartu kolom_pratinjau" aria-labelledby="prv">
+      <div class="baris_judul">
+        <h2 id="prv">Pratinjau</h2>
+        <div class="geser_frame"><label for="kal_posisi">Posisi frame</label><input id="kal_posisi" type="range" min="0" max="1" step="0.01" value="0.3"></div>
+      </div>
+      <p id="klik_petunjuk" class="petunjuk" hidden></p>
+      <div class="wadah_klik">
+        <img id="pratinjau_gbr" alt="Frame video dengan kisi jalan, garis hitung, dan kotak mobil acuan">
+        <canvas id="kal_kanvas" aria-label="Lapisan klik kalibrasi"></canvas>
+      </div>
       <p id="pratinjau_pesan" class="galat" hidden></p>
-      <p class="redup">Kalibrasi sudah tepat bila garis kisi sejajar marka jalan dan kotak hijau (4,5 × 1,8 × 1,5 m) seukuran mobil di dekatnya.
-        Jingga: batas jalur. Sian: median. Merah: garis hitung mendekat. Ungu: garis hitung menjauh.</p>
+      <div class="legenda_garis">
+        <span><i class="garis_warna w_a"></i>Garis A</span>
+        <span><i class="garis_warna w_b"></i>Garis B</span>
+        <span><i class="titik_warna w_p"></i>Titik panjang</span>
+        <span><i class="garis_warna w_median"></i>Median</span>
+        <span><i class="garis_warna w_dekat"></i>Garis mendekat</span>
+        <span><i class="garis_warna w_jauh"></i>Garis menjauh</span>
+        <span><i class="garis_warna w_batas"></i>Batas jalur</span>
+        <span><i class="kotak_warna"></i>Mobil acuan 4,5 × 1,8 m</span>
+      </div>
+      <div class="dua_info">
+        <div><strong>Kalibrasi sudah tepat bila…</strong><span>✓ Garis kisi sejajar dengan marka jalan.</span><span>✓ Kotak hijau seukuran mobil di dekatnya.</span><span>✓ Benda yang diketahui jaraknya ada di angka meter yang sesuai.</span></div>
+        <div><strong>Bila belum pas</strong><span>Periksa lagi dua angka jarak, lalu klik titiknya lebih tepat di garis marka. Tekan Ulangi klik untuk mulai dari awal.</span></div>
+      </div>
     </section>
   </div>
+
+  <dialog id="dlg_panduan" class="dialog" aria-labelledby="pd_judul">
+    <div class="kepala_dialog">
+      <div><h2 id="pd_judul">Cara menandai jalan</h2><p class="redup">Semua titik diklik pada <strong>marka yang memanjang searah jalan</strong>, bukan yang melintang.</p></div>
+      <form method="dialog"><button class="tutup" aria-label="Tutup"><svg aria-hidden="true" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M18 6 6 18"></path><path d="m6 6 12 12"></path></svg></button></form>
+    </div>
+    <div class="isi_panduan">
+      <svg role="img" aria-label="Sketsa jalan dilihat dari kamera: garis A di tepi kiri, garis B di tepi kanan, titik panjang di marka tengah" viewBox="0 0 330 400" class="sketsa">
+        <rect x="0" y="0" width="330" height="90" fill="#bcd6ee"></rect><rect x="0" y="90" width="330" height="310" fill="#7c9a5c"></rect>
+        <polygon points="20,400 310,400 178,90 152,90" fill="#5d6470"></polygon>
+        <line x1="40" y1="400" x2="154" y2="91" stroke="#f4f4f4" stroke-width="4"></line>
+        <line x1="290" y1="400" x2="176" y2="91" stroke="#f4f4f4" stroke-width="4"></line>
+        <line x1="166" y1="400" x2="165" y2="91" stroke="#e2b93b" stroke-width="5" stroke-dasharray="26 22"></line>
+        <line x1="57" y1="352" x2="132" y2="150" stroke="#2563eb" stroke-width="4"></line>
+        <circle cx="57" cy="352" r="8" fill="#2563eb" stroke="#fff" stroke-width="2.5"></circle><circle cx="132" cy="150" r="8" fill="#2563eb" stroke="#fff" stroke-width="2.5"></circle>
+        <line x1="273" y1="352" x2="198" y2="150" stroke="#d97706" stroke-width="4"></line>
+        <circle cx="273" cy="352" r="8" fill="#d97706" stroke="#fff" stroke-width="2.5"></circle><circle cx="198" cy="150" r="8" fill="#d97706" stroke="#fff" stroke-width="2.5"></circle>
+        <circle cx="166" cy="376" r="7" fill="#db2777" stroke="#fff" stroke-width="2.5"></circle><circle cx="166" cy="328" r="7" fill="#db2777" stroke="#fff" stroke-width="2.5"></circle>
+        <line x1="70" y1="300" x2="260" y2="300" stroke="#ffffff" stroke-width="2" stroke-dasharray="6 6"></line>
+        <text x="165" y="292" fill="#ffffff" font-size="12" font-weight="600" text-anchor="middle">lebar = jarak A ke B</text>
+        <rect x="16" y="300" width="22" height="22" rx="5" fill="#2563eb"></rect><text x="27" y="316" fill="#fff" font-size="13" font-weight="700" text-anchor="middle">A</text>
+        <rect x="292" y="300" width="22" height="22" rx="5" fill="#d97706"></rect><text x="303" y="316" fill="#fff" font-size="13" font-weight="700" text-anchor="middle">B</text>
+        <rect x="180" y="342" width="22" height="22" rx="5" fill="#db2777"></rect><text x="191" y="358" fill="#fff" font-size="13" font-weight="700" text-anchor="middle">P</text>
+      </svg>
+      <ol class="langkah_panduan">
+        <li><span class="lencana_l l_a" aria-hidden="true">A</span><div><strong>Garis A</strong><span>Klik 2 titik pada satu marka searah jalan, misalnya garis tepi putih kiri: satu dekat di bawah gambar, satu jauh di depan.</span></div></li>
+        <li><span class="lencana_l l_b" aria-hidden="true">B</span><div><strong>Garis B</strong><span>Klik 2 titik pada marka lain yang sejajar dengan A, misalnya garis tepi putih kanan. Lalu isi lebar nyata A ke B (diukur dengan meteran).</span></div></li>
+        <li><span class="lencana_l l_p" aria-hidden="true">P</span><div><strong>Panjang</strong><span>Klik 2 titik searah jalan yang jaraknya diketahui, misalnya ujung awal dua marka kuning berurutan, lalu isi jarak nyatanya.</span></div></li>
+        <li class="lakukan">
+          <div class="hijau"><strong>Lakukan</strong><span>✓ Marka searah jalan</span><span>✓ Titik saling berjauhan</span><span>✓ Jalan lurus dan datar</span><span>✓ Ukuran dari meteran</span></div>
+          <div class="merah"><strong>Hindari</strong><span>✗ Marka melintang (zebra cross)</span><span>✗ Tikungan atau tanjakan</span><span>✗ Titik terlalu berdekatan</span><span>✗ Menebak ukuran</span></div>
+        </li>
+      </ol>
+    </div>
+    <form method="dialog" class="kaki_dialog"><button class="utamakan besar">Mengerti, mulai menandai</button></form>
+  </dialog>
 </main>
 
 <!-- ================= Proses ================= -->
@@ -135,10 +444,13 @@
     <section class="kartu">
       <h2>Proses video</h2>
       <form id="form_proses">
-        <label for="proses_sumber">Video</label>
-        <select id="proses_sumber"></select>
-        <label for="proses_node">Profil kamera (node)</label>
+        <label for="proses_node">Kamera (node)</label>
         <select id="proses_node"></select>
+        <label for="proses_sumber">Video dari kamera ini</label>
+        <select id="proses_sumber"></select>
+        <p id="proses_kosong" class="redup" hidden>Belum ada rekaman dari kamera ini. Rekam atau unggah dulu di halaman Pengambilan video.</p>
+        <label for="proses_kal">Versi kalibrasi</label>
+        <select id="proses_kal"></select>
         <label for="proses_model">Model (bobot .pth)</label>
         <select id="proses_model"></select>
         <details>
@@ -231,6 +543,6 @@
     </div>
   </div>
 </main>
-<script src="app.js"></script>
+<script src="app.js?v=7"></script>
 </body>
 </html>

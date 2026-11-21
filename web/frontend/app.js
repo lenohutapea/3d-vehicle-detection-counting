@@ -50,14 +50,15 @@ const LABEL = { antre: "menunggu", proses: "diproses", selesai: "selesai", gagal
 const JENIS = { otomatis: "otomatis", manual: "manual", contoh: "contoh" };
 
 // ---------------------------------------------------------------- navigasi
+const HALAMAN = ["rekam", "kamera", "kalibrasi", "proses", "hasil"];
 function rute() {
   const bagian = location.hash.replace(/^#\/?/, "").split("/");
-  const hal = ["rekam", "kalibrasi", "proses", "hasil"].includes(bagian[0]) ? bagian[0] : "hasil";
+  const hal = HALAMAN.includes(bagian[0]) ? bagian[0] : "hasil";
   clearTimeout(pengatur);
   halaman = hal;
-  for (const h of ["rekam", "kalibrasi", "proses", "hasil"]) $("hal_" + h).hidden = h !== hal;
+  for (const h of HALAMAN) $("hal_" + h).hidden = h !== hal;
   document.querySelectorAll(".nav a").forEach((a) => a.classList.toggle("aktif", a.dataset.hal === hal));
-  ({ rekam: bukaRekam, kalibrasi: bukaKalibrasi, proses: bukaProses, hasil: () => bukaHasil(bagian[1]) })[hal]();
+  ({ rekam: bukaRekam, kamera: () => bukaKamera(bagian[1]), kalibrasi: () => bukaKalibrasi(bagian[1]), proses: bukaProses, hasil: () => bukaHasil(bagian[1]) })[hal]();
 }
 async function muatInfo() {
   INFO = await api("/api/info");
@@ -65,20 +66,72 @@ async function muatInfo() {
   kotak.replaceChildren();
   INFO.masalah.forEach((m) => kotak.appendChild(el("p", "", m)));
   kotak.hidden = !INFO.masalah.length;
-  const node = INFO.node.map((n) => [n.id, n.nama]);
-  for (const id of ["rekam_node", "kal_node", "proses_node"]) isiPilihan($(id), node);
-  isiPilihan($("cari_node"), [["", "semua"]].concat(node));
+  const aktif = INFO.node.filter((n) => n.aktif !== false).map((n) => [n.id, n.nama]);   // kamera nonaktif disembunyikan
+  for (const id of ["rekam_node", "kal_node", "proses_node"]) isiPilihan($(id), aktif);
+  isiPilihan($("cari_node"), [["", "semua"]].concat(INFO.node.map((n) => [n.id, n.nama])));
 }
 
 // ================================================================ Pengambilan video
 async function bukaRekam() {
-  const j = INFO.jadwal;
-  $("jadwal_n").textContent = j.video_per_hari + " video";
-  $("jadwal_durasi").textContent = j.durasi_detik + " detik";
-  $("jadwal_rentang").textContent = j.jam_mulai + " – " + j.jam_selesai;
-  $("jadwal_berkas").textContent = INFO.berkas_setelan;
+  try { await muatJadwal(true); } catch (e) { pesan("jadwal_pesan", e.message); }
   await segarkanRekam();
 }
+// jadwal otomatis: bawaan di 2_automatic/schedule.json, perubahan dari web di data/schedule/
+async function muatJadwal(isiFormulir) {
+  const j = await api("/api/jadwal");
+  const a = j.aktif;
+  INFO.jadwal = Object.assign({}, a, { jam: j.jam });
+  $("jadwal_n").textContent = a.video_per_hari + " video";
+  $("jadwal_durasi").textContent = a.durasi_detik + " detik";
+  $("jadwal_rentang").textContent = a.jam_mulai + " – " + a.jam_selesai;
+  $("jadwal_sumber").textContent = j.sumber === "riwayat"
+    ? "Memakai jadwal versi " + j.versi + (a.tersimpan ? " (disimpan " + a.tersimpan + ")" : "") + "."
+    : "Memakai jadwal bawaan (2_automatic/schedule.json).";
+  if (isiFormulir) {
+    $("j_n").value = a.video_per_hari; $("j_durasi").value = a.durasi_detik;
+    $("j_mulai").value = a.jam_mulai; $("j_selesai").value = a.jam_selesai;
+  }
+  const ul = $("jadwal_riwayat");
+  ul.replaceChildren();
+  j.riwayat.forEach((v) => {
+    const li = el("li");
+    li.appendChild(el("span", "ket", v.versi + " · " + v.video_per_hari + " video · " + v.durasi_detik + " detik · " +
+      v.jam_mulai + "–" + v.jam_selesai + (v.aktif ? " · sedang dipakai" : "")));
+    if (!v.aktif) {
+      const b = el("button", "polos", "Pakai versi ini");
+      b.type = "button";
+      b.addEventListener("click", async () => {
+        try { await api("/api/jadwal/riwayat/" + encodeURIComponent(v.versi), { method: "POST" }); await muatJadwal(true); segarkanRekam(); }
+        catch (e) { pesan("jadwal_pesan", e.message); }
+      });
+      li.appendChild(b);
+    }
+    ul.appendChild(li);
+  });
+  $("jadwal_riwayat_kosong").hidden = j.riwayat.length > 0;
+  $("jadwal_bawaan").hidden = j.sumber !== "riwayat";
+}
+$("form_jadwal").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  pesan("jadwal_pesan", ""); pesan("jadwal_ok", "");
+  const data = new FormData();
+  data.append("video_per_hari", $("j_n").value);
+  data.append("durasi_detik", $("j_durasi").value);
+  data.append("jam_mulai", $("j_mulai").value);
+  data.append("jam_selesai", $("j_selesai").value);
+  try {
+    const j = await api("/api/jadwal", { method: "POST", body: data });
+    await muatJadwal(true);
+    segarkanRekam();
+    pesan("jadwal_ok", "Jadwal tersimpan sebagai versi " + j.versi + " dan langsung berlaku.");
+  } catch (e) { pesan("jadwal_pesan", e.message); }
+});
+$("jadwal_bawaan").addEventListener("click", async () => {
+  if (!confirm("Kembali ke jadwal bawaan? Riwayat jadwal tetap disimpan.")) return;
+  pesan("jadwal_pesan", ""); pesan("jadwal_ok", "");
+  try { await api("/api/jadwal/bawaan", { method: "POST" }); await muatJadwal(true); segarkanRekam(); }
+  catch (e) { pesan("jadwal_pesan", e.message); }
+});
 async function segarkanRekam() {
   if (halaman !== "rekam") return;
   const node = $("rekam_node").value;
@@ -166,14 +219,44 @@ $("form_unggah").addEventListener("submit", async (ev) => {
 // ================================================================ Kalibrasi kamera
 const KUNCI_KAL = ["PITCH_DEG", "CAM_HEIGHT_M", "FOCAL_PX", "LINE_Y_DEFAULT_M", "LINE_Y_AWAY_M", "MEDIAN_X_M", "LANE_HALF_WIDTH_M", "MAX_TRACK_DEPTH_M"];
 let tundaPratinjau = null, nomorPratinjau = 0;
+let profilAktif = null;                                  // profil node yang sedang dibuka
+let klik = { langkah: null, A: [], B: [], P: [] };      // titik klik (piksel frame IMG_W x IMG_H)
+let klikXml = null, klikData = null;
+let adaUbahan = false;                                   // ada perubahan yang belum disimpan                     // hasil "Hitung kalibrasi" yang belum disimpan
+const WARNA_KLIK = { A: "#2563eb", B: "#d97706", P: "#db2777" };
 
 async function daftarSumber(node) {
   const rekaman = await api("/api/rekaman" + (node ? "?node=" + encodeURIComponent(node) : ""));
   return rekaman.map((r) => [r.sumber, r.waktu + " · " + namaNode(r.node) + " · " + JENIS[r.mode]])
     .concat(INFO.contoh.map((c) => ["contoh/" + c, "contoh · " + c]));
 }
-async function bukaKalibrasi() {
+async function bukaKalibrasi(node) {
+  if (node && [...$("kal_node").options].some((o) => o.value === node)) $("kal_node").value = node;
   await muatProfil();
+}
+function tampilHasil(h, tersimpan) {
+  $("hasil_klik").hidden = !h;
+  if (!h) { pesan("klik_hasil", ""); return; }
+  $("h_tinggi").textContent = Number(h.h).toFixed(2) + " m";
+  $("h_sudut").textContent = Number(h.sudut_tunduk).toFixed(1) + "°";
+  $("h_focal").textContent = Math.round(h.f) + " px";
+  pesan("klik_hasil", tersimpan ? "Ini hasil klik yang tersimpan di versi aktif."
+    : "Periksa pratinjau: kisi sejajar marka dan kotak hijau seukuran mobil. Bila sudah pas, simpan di langkah 4.");
+}
+function tandaiTahap() {
+  const m = modeKal();
+  const t2 = m === "klik" ? (klikXml || (profilAktif && profilAktif.klik && ["A", "B", "P"].every((n) => klik[n].length === 2)))
+    : (m === "nilai" || !!(profilAktif && profilAktif.ada_xml) || $("xml").files.length > 0);
+  const status = [true, !!t2, !!t2, !!t2 && !adaUbahan && !!profilAktif && profilAktif.sumber_profil === "riwayat"];
+  const kini = status.indexOf(false);
+  status.forEach((ok, i) => {
+    const li = $("tahap" + (i + 1)), b = li.querySelector(".bulat");
+    li.className = ok ? "selesai" : (i === kini ? "kini" : "");
+    b.textContent = ok ? "✓" : String(i + 1);
+    $("nomor" + (i + 1)).className = "nomor" + (ok ? " selesai" : "");
+    $("nomor" + (i + 1)).textContent = ok ? "✓" : String(i + 1);
+  });
+  $("kartu2").classList.toggle("kartu_aktif", !t2);
 }
 async function muatProfil() {
   pesan("kal_pesan", ""); pesan("kal_ok", "");
@@ -182,25 +265,199 @@ async function muatProfil() {
   const p = await api("/api/kamera/" + encodeURIComponent(node) + "/profil");
   KUNCI_KAL.forEach((k) => { $(k).value = p[k]; });
   document.querySelectorAll("input[data-untuk]").forEach((r) => { r.value = $(r.dataset.untuk).value; });
-  document.querySelectorAll("input[name=mode]").forEach((r) => { r.checked = r.value === p.mode; });
+  profilAktif = p;
+  const k = p.klik;
+  klik = { langkah: null, A: k ? k.A : [], B: k ? k.B : [], P: k ? k.P : [] };
+  klikXml = null; klikData = null; adaUbahan = false;
+  if (k) { $("klik_lebar").value = k.lebar; $("klik_panjang").value = k.panjang; }
+  pesan("klik_pesan", "");
+  tampilHasil(k && k.hasil, true);
+  const metode = p.metode === "klik" ? "klik" : (p.sumber_profil === "riwayat" || p.sumber_profil === "bawaan" ? p.mode : "klik");
+  document.querySelectorAll("input[name=mode]").forEach((r) => { r.checked = r.value === metode; });
+  $("kal_lanjutan").open = metode === "xml";
   $("xml").value = "";
   $("kal_xml_ket").textContent = p.ada_xml ? "Berkas kalibrasi tersimpan: " + p.CALIB_XML : "Belum ada berkas kalibrasi tersimpan untuk node ini.";
-  $("kal_tersimpan").textContent = p.tersimpan ? "Terakhir disimpan " + p.tersimpan : "Belum pernah disimpan (memakai nilai bawaan pipeline).";
+  const ks = $("kal_tersimpan");
+  ks.replaceChildren(el("span", "chip " + (p.sumber_profil === "riwayat" ? "chip_hijau" : "chip_abu"),
+    p.sumber_profil === "riwayat" ? "Versi aktif " + p.versi : (p.sumber_profil === "bawaan" ? "Profil bawaan" : "Belum dikalibrasi")),
+  document.createTextNode(p.sumber_profil === "riwayat" ? (p.tersimpan ? " disimpan " + p.tersimpan : "")
+    : (p.sumber_profil === "bawaan" ? " dari 1_camera_calibration/camera_profiles" : " memakai nilai awal config.py")));
+  $("kal_bawaan").hidden = p.sumber_profil !== "riwayat";
+  const kanan = p.LAJUR === "kanan";
+  $("kal_lajur").replaceChildren(el("strong", "", kanan ? "Lajur kanan (data latihan dari Ceko). " : "Lajur kiri (Indonesia). "),
+    document.createTextNode(kanan ? "Kanan median = menjauh dari kamera, kiri median = mendekat."
+      : "Kendaraan di kiri median bergerak menjauh dari kamera, di kanan median mendekat."));
+  $("ket_dekat").textContent = "Dihitung saat melewati garis merah (" + (kanan ? "kiri" : "kanan") + " median).";
+  $("ket_jauh").textContent = "Dihitung saat melewati garis ungu (" + (kanan ? "kanan" : "kiri") + " median).";
+  muatRiwayatKal();
   tampilMode();
   pratinjau();
 }
+async function muatRiwayatKal() {
+  const node = $("kal_node").value;
+  pesan("kal_riwayat_pesan", "");
+  try {
+    const daftar = await api("/api/kamera/" + encodeURIComponent(node) + "/riwayat");
+    const ul = $("kal_riwayat");
+    ul.replaceChildren();
+    daftar.forEach((v) => {
+      const li = el("li");
+      const isi = v.metode === "xml" ? "berkas kalibrasi"
+        : (v.metode === "klik" ? "klik · " : "") + "sudut " + v.PITCH_DEG + "° · tinggi " + v.CAM_HEIGHT_M + " m · focal " + v.FOCAL_PX;
+      if (v.aktif) li.className = "dipakai";
+      const ket = el("div", "ket");
+      ket.appendChild(el("strong", "mono", v.versi));
+      ket.appendChild(el("span", "redup kecil", isi + " · garis " + v.LINE_Y_DEFAULT_M + "/" + v.LINE_Y_AWAY_M + " m"));
+      li.appendChild(ket);
+      if (v.aktif) li.appendChild(el("span", "chip chip_hijau", "Sedang dipakai"));
+      else {
+        const b = el("button", "polos", "Pakai versi ini");
+        b.type = "button";
+        b.addEventListener("click", async () => {
+          try { await api("/api/kamera/" + encodeURIComponent(node) + "/riwayat/" + encodeURIComponent(v.versi), { method: "POST" }); await muatProfil(); }
+          catch (e) { pesan("kal_riwayat_pesan", e.message); }
+        });
+        li.appendChild(b);
+      }
+      ul.appendChild(li);
+    });
+    $("kal_riwayat_kosong").hidden = daftar.length > 0;
+  } catch (e) { pesan("kal_riwayat_pesan", e.message); }
+}
+$("kal_bawaan").addEventListener("click", async () => {
+  if (!confirm("Kembali ke profil bawaan untuk node ini? Riwayat kalibrasi tetap disimpan.")) return;
+  try { await api("/api/kamera/" + encodeURIComponent($("kal_node").value) + "/bawaan", { method: "POST" }); await muatProfil(); }
+  catch (e) { pesan("kal_riwayat_pesan", e.message); }
+});
+function modeKal() {
+  const r = document.querySelector("input[name=mode]:checked");
+  return r ? r.value : "nilai";
+}
 function tampilMode() {
-  const xml = document.querySelector("input[name=mode]:checked").value === "xml";
-  $("kal_nilai").hidden = xml;
-  $("kal_xml").hidden = !xml;
+  const m = modeKal();
+  $("kal_klik").hidden = m !== "klik";
+  $("kal_nilai").hidden = m !== "nilai";
+  $("kal_xml").hidden = m !== "xml";
+  if (m !== "klik") pilihLangkah(null);
+  else if (!klik.langkah && ["A", "B", "P"].some((k) => klik[k].length < 2)) pilihLangkah(["A", "B", "P"].find((k) => klik[k].length < 2));
+  else pilihLangkah(klik.langkah);
 }
 function formulirKalibrasi() {
   const data = new FormData();
   KUNCI_KAL.forEach((k) => data.append(k, $(k).value));
-  data.append("mode", document.querySelector("input[name=mode]:checked").value);
-  if ($("xml").files.length) data.append("xml", $("xml").files[0]);
+  const m = modeKal();
+  if (m === "klik") {
+    if (klikXml) {                                   // hasil "Hitung kalibrasi" yang baru
+      data.append("mode", "xml");
+      data.append("xml", new File([klikXml], "klik.xml", { type: "text/xml" }));
+      data.append("klik", JSON.stringify(klikData));
+    } else {                                         // belum menghitung: pakai profil yang ada
+      data.append("mode", profilAktif ? profilAktif.mode : "nilai");
+      if (profilAktif && profilAktif.klik) data.append("klik", JSON.stringify(profilAktif.klik));
+    }
+  } else {
+    data.append("mode", m);
+    if (m === "xml" && $("xml").files.length) data.append("xml", $("xml").files[0]);
+  }
   return data;
 }
+// ---------------------------------------------------------------- kalibrasi dengan klik
+function pilihLangkah(k) {
+  klik.langkah = k || null;
+  document.querySelectorAll("[data-langkah]").forEach((b) => b.classList.toggle("aktif_langkah", b.dataset.langkah === klik.langkah));
+  $("kal_kanvas").classList.toggle("bisa_klik", !!klik.langkah && modeKal() === "klik");
+  const NAMA = { A: "garis A", B: "garis B", P: "panjang" };
+  for (const n of ["A", "B", "P"]) {
+    const c = $("status_" + n), jml = klik[n].length;
+    c.textContent = jml === 2 ? "✓ 2 titik" : (klik.langkah === n ? "Klik " + (2 - jml) + " titik lagi" : (jml ? "1 dari 2 titik" : "Belum"));
+    c.className = "chip " + (jml === 2 ? "chip_hijau" : (klik.langkah === n ? "chip_kuning" : "chip_abu"));
+    document.querySelector('[data-baris="' + n + '"]').classList.toggle("sedang", klik.langkah === n);
+    document.querySelector('[data-langkah="' + n + '"]').textContent = jml ? "Ulangi " + NAMA[n] : "Tandai " + NAMA[n];
+  }
+  const p = $("klik_petunjuk");
+  if (klik.langkah && modeKal() === "klik") {
+    const ke = klik[klik.langkah].length + 1;
+    p.className = "petunjuk p_" + klik.langkah.toLowerCase();
+    p.replaceChildren(el("span", "lencana_l l_" + klik.langkah.toLowerCase(), klik.langkah),
+      el("span", "", "Sekarang: klik titik ke-" + ke + " untuk " + NAMA[klik.langkah] +
+        (klik.langkah === "P" ? " (searah jalan)" : (ke === 1 ? " — titik dekat, di bawah gambar" : " — titik jauh, di depan"))));
+    p.hidden = false;
+  } else p.hidden = true;
+  tandaiTahap();
+  gambarKlik();
+}
+function gambarKlik() {
+  const img = $("pratinjau_gbr"), kv = $("kal_kanvas");
+  const w = img.clientWidth, h = img.clientHeight;
+  kv.width = w; kv.height = h;
+  const c = kv.getContext("2d");
+  c.clearRect(0, 0, w, h);
+  if (modeKal() !== "klik" || !w) return;
+  const sx = w / (img.naturalWidth || 1280), sy = h / (img.naturalHeight || 720);
+  for (const n of ["A", "B", "P"]) {
+    const t = klik[n];
+    c.strokeStyle = c.fillStyle = WARNA_KLIK[n];
+    c.lineWidth = 2;
+    if (t.length === 2) {
+      if (n !== "P") {                                // garis A/B diperpanjang agar terlihat menuju titik hilang
+        const dx = t[1][0] - t[0][0], dy = t[1][1] - t[0][1];
+        c.setLineDash([6, 5]); c.globalAlpha = 0.6;
+        c.beginPath(); c.moveTo((t[0][0] - 2 * dx) * sx, (t[0][1] - 2 * dy) * sy); c.lineTo((t[0][0] + 6 * dx) * sx, (t[0][1] + 6 * dy) * sy); c.stroke();
+        c.setLineDash([]); c.globalAlpha = 1;
+      }
+      c.lineWidth = 3;
+      c.beginPath(); c.moveTo(t[0][0] * sx, t[0][1] * sy); c.lineTo(t[1][0] * sx, t[1][1] * sy); c.stroke();
+      c.font = "bold 13px sans-serif";
+      c.fillText(n === "P" ? "panjang" : "garis " + n, t[1][0] * sx + 7, t[1][1] * sy - 7);
+    }
+    t.forEach(([u, v]) => { c.beginPath(); c.arc(u * sx, v * sy, 5, 0, 2 * Math.PI); c.fill(); });
+  }
+}
+$("kal_kanvas").addEventListener("click", (ev) => {
+  if (modeKal() !== "klik" || !klik.langkah) return;
+  const img = $("pratinjau_gbr"), r = ev.currentTarget.getBoundingClientRect();
+  const u = (ev.clientX - r.left) * (img.naturalWidth || 1280) / r.width;
+  const v = (ev.clientY - r.top) * (img.naturalHeight || 720) / r.height;
+  const t = klik[klik.langkah];
+  if (t.length >= 2) t.length = 0;
+  t.push([Math.round(u * 10) / 10, Math.round(v * 10) / 10]);
+  klikXml = null; adaUbahan = true;                  // titik berubah: perlu dihitung ulang
+  tampilHasil(null);
+  if (t.length === 2) pilihLangkah(["A", "B", "P"].find((n) => klik[n].length < 2) || null);
+  else pilihLangkah(klik.langkah);
+});
+document.querySelectorAll("[data-langkah]").forEach((b) => b.addEventListener("click", () => {
+  klik[b.dataset.langkah] = []; adaUbahan = true;
+  klikXml = null;
+  pilihLangkah(b.dataset.langkah);
+}));
+$("klik_ulang").addEventListener("click", () => {
+  klik = { langkah: null, A: [], B: [], P: [] };
+  klikXml = null; klikData = null; adaUbahan = true;
+  pesan("klik_pesan", ""); tampilHasil(null);
+  pilihLangkah("A");
+});
+$("klik_hitung").addEventListener("click", async () => {
+  pesan("klik_pesan", ""); tampilHasil(null); pesan("kal_ok", "");
+  if (["A", "B", "P"].some((n) => klik[n].length < 2)) {
+    pesan("klik_pesan", "Lengkapi dulu garis A, garis B, dan panjang (masing-masing 2 titik di gambar).");
+    return;
+  }
+  const isi = { A: klik.A, B: klik.B, P: klik.P, lebar: Number($("klik_lebar").value), panjang: Number($("klik_panjang").value) };
+  try {
+    const r = await api("/api/kamera/" + encodeURIComponent($("kal_node").value) + "/kalibrasi-klik",
+      { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(isi) });
+    klikXml = r.xml; adaUbahan = true;
+    klikData = Object.assign({}, isi, { hasil: { f: r.hasil.f, h: r.hasil.h, sudut_tunduk: r.hasil.sudut_tunduk } });
+    for (const [n, v] of Object.entries(r.nilai)) { $(n).value = v; const g = document.querySelector('input[data-untuk="' + n + '"]'); if (g) g.value = v; }
+    tampilHasil(r.hasil, false);
+    pilihLangkah(null);
+    pratinjau();
+  } catch (e) { pesan("klik_pesan", e.message); }
+});
+$("pratinjau_gbr").addEventListener("load", gambarKlik);
+$("buka_panduan").addEventListener("click", () => $("dlg_panduan").showModal());
+window.addEventListener("resize", gambarKlik);
 function pratinjau() {
   clearTimeout(tundaPratinjau);
   tundaPratinjau = setTimeout(async () => {
@@ -227,18 +484,224 @@ $("form_kal").addEventListener("input", (ev) => {
   const geser = document.querySelector('input[data-untuk="' + t.id + '"]');
   if (geser) geser.value = t.value;                                              // angka -> penggeser
   if (t.name === "mode") tampilMode();
+  if (t.id === "klik_lebar" || t.id === "klik_panjang") klikXml = null;
+  if (t.id !== "kal_posisi" && t.id !== "kal_sumber") adaUbahan = true;
+  tandaiTahap();
   pesan("kal_ok", "");
   pratinjau();
 });
 $("form_kal").addEventListener("submit", async (ev) => {
   ev.preventDefault();
   pesan("kal_pesan", ""); pesan("kal_ok", "");
+  if (modeKal() === "klik" && !klikXml && !(profilAktif && profilAktif.klik)) {
+    pesan("kal_pesan", "Klik titik-titiknya di gambar lalu tekan Hitung kalibrasi sebelum menyimpan.");
+    return;
+  }
   try {
     const p = await api("/api/kamera/" + encodeURIComponent($("kal_node").value) + "/profil", { method: "POST", body: formulirKalibrasi() });
     await muatInfo();
     await muatProfil();
-    pesan("kal_ok", "Profil tersimpan (" + p.tersimpan + "). Berlaku untuk video yang diproses setelah ini.");
+    pesan("kal_ok", "Kalibrasi tersimpan sebagai versi " + p.versi + ". Berlaku untuk video yang diproses setelah ini.");
   } catch (e) { pesan("kal_pesan", e.message); }
+});
+
+// ================================================================ Kamera (kelola node)
+let kamDaftar = [], kamPilih = null, kamToken = null, kamSalin = null;
+const STATUS_KAM = (k) => !k.aktif ? ["Nonaktif", "s_abu"] : k.jenis === "data" ? ["Data latihan", "s_biru"]
+  : k.terhubung ? ["Terhubung", "s_hijau"] : k.terakhir ? ["Terputus", "s_merah"] : ["Menunggu perangkat", "s_kuning"];
+
+async function bukaKamera(id) {
+  if (id) kamPilih = decodeURIComponent(id);
+  await segarkanKamera();
+}
+async function segarkanKamera() {
+  if (halaman !== "kamera") return;
+  try {
+    kamDaftar = await api("/api/kamera");
+    pesan("kam_pesan", "");
+  } catch (e) { pesan("kam_pesan", e.message); }
+  if (!kamDaftar.some((k) => k.id === kamPilih)) kamPilih = kamDaftar.length ? kamDaftar[0].id : null;
+  gambarDaftarKamera();
+  gambarRinciKamera();
+  clearTimeout(pengatur);
+  pengatur = setTimeout(segarkanKamera, 5000);
+}
+function waktuLalu(d) {
+  if (d === null || d === undefined) return "belum pernah";
+  if (d < 60) return d + " detik lalu";
+  if (d < 3600) return Math.round(d / 60) + " menit lalu";
+  if (d < 86400) return Math.round(d / 3600) + " jam lalu";
+  return Math.round(d / 86400) + " hari lalu";
+}
+function teksKal(k) {
+  const s = k.kalibrasi && k.kalibrasi.sumber;
+  return s === "riwayat" ? "versi " + k.kalibrasi.versi : s === "bawaan" ? "profil bawaan" : "belum dikalibrasi";
+}
+function gambarDaftarKamera() {
+  const box = $("kam_daftar");
+  box.replaceChildren();
+  const nyambung = kamDaftar.filter((k) => k.terhubung).length;
+  $("kam_ringkas").textContent = kamDaftar.length + " kamera · " + nyambung + " terhubung";
+  kamDaftar.forEach((k) => {
+    const b = el("button", "item_kamera" + (k.id === kamPilih ? " dipilih" : "") + (k.aktif ? "" : " mati"));
+    b.type = "button";
+    const [st, kls] = STATUS_KAM(k);
+    const atas = el("div", "atas_item");
+    atas.appendChild(el("strong", "", k.nama));
+    atas.appendChild(el("span", "st_kam " + kls, st));
+    b.appendChild(atas);
+    b.appendChild(el("span", "redup kecil", k.id + " · " + k.jenis_nama));
+    const chip = el("div", "chips");
+    chip.appendChild(el("span", "chip " + (k.kalibrasi.sumber === "riwayat" ? "chip_hijau" : "chip_abu"), "Kalibrasi: " + teksKal(k)));
+    if (k.jenis !== "data") chip.appendChild(el("span", "chip chip_abu", "Lapor: " + waktuLalu(k.detik_lalu)));
+    b.appendChild(chip);
+    b.addEventListener("click", () => { kamPilih = k.id; kamToken = null; history.replaceState(null, "", "#/kamera/" + encodeURIComponent(k.id)); gambarDaftarKamera(); gambarRinciKamera(); });
+    box.appendChild(b);
+  });
+  if (!kamDaftar.length) box.appendChild(el("p", "redup", "Belum ada kamera. Tekan Tambah kamera."));
+}
+function gambarRinciKamera() {
+  const k = kamDaftar.find((x) => x.id === kamPilih);
+  $("kam_rinci").hidden = !k;
+  if (!k) return;
+  const [st, kls] = STATUS_KAM(k);
+  $("kr_nama").textContent = k.nama;
+  $("kr_status").className = "status_teks " + kls;
+  $("kr_status").textContent = st + (k.jenis !== "data" && k.terakhir ? " · lapor terakhir " + waktuLalu(k.detik_lalu) : "");
+  $("kr_id").textContent = k.id;
+  $("kr_jenis").textContent = k.jenis === "data" ? "Data latihan" : k.jenis === "ip" ? "IP camera" : "Raspberry Pi";
+  $("kr_jenis_ket").textContent = k.jenis === "ip" ? "RTSP, direkam lewat perangkat" : k.jenis === "pi" ? "Modul kamera Pi" : "Tanpa perangkat";
+  $("kr_kal").textContent = teksKal(k);
+  $("kr_kal_link").href = "#/kalibrasi/" + encodeURIComponent(k.id);
+  $("kr_kal_link").textContent = k.kalibrasi.sumber === "riwayat" ? "Buka kalibrasi" : "Kalibrasi sekarang";
+  $("kr_catatan").textContent = k.catatan ? "Lokasi: " + k.catatan : "";
+  $("kr_catatan").hidden = !k.catatan;
+  const perangkat = k.jenis !== "data";
+  $("kr_hub").hidden = !perangkat || !k.aktif;
+  $("kr_tok").hidden = !perangkat;
+  $("kr_data").hidden = perangkat;
+  $("kr_hub").classList.toggle("kartu_aktif", !k.terhubung);
+  $("kr_aktif").textContent = k.aktif ? "Nonaktifkan" : "Aktifkan lagi";
+  $("kr_unduh").href = "/api/kamera/" + encodeURIComponent(k.id) + "/program";
+  if (!document.querySelector("input[name=kr_jenis_cmd]:checked") || $("kr_hub").dataset.untuk !== k.id) {
+    document.querySelectorAll("input[name=kr_jenis_cmd]").forEach((r) => { r.checked = r.value === (k.jenis === "ip" ? "ip" : "pi"); });
+    $("kr_hub").dataset.untuk = k.id;
+  }
+  if (!$("kr_server").value) $("kr_server").value = /^(127\.|localhost)/.test(location.hostname) ? "" : location.origin;
+  $("kr_token").textContent = kamToken ? kamToken.token : "••••••••••••••••••••";
+  $("kr_tampil").textContent = kamToken ? "Sembunyikan" : "Tampilkan";
+  $("kr_token_ket").textContent = k.token_sendiri
+    ? "Token ini khusus untuk " + k.id + ". Bila bocor, buat token baru; perangkat lama langsung ditolak sampai perintahnya diganti."
+    : "Kamera ini masih memakai token bersama dari data/settings.json (token_node). Tekan Buat token baru agar punya token sendiri.";
+  susunPerintah();
+}
+function susunPerintah() {
+  const k = kamDaftar.find((x) => x.id === kamPilih);
+  if (!k) return;
+  const jenis = (document.querySelector("input[name=kr_jenis_cmd]:checked") || {}).value || "pi";
+  $("kr_rtsp_wadah").hidden = jenis !== "ip";
+  const server = $("kr_server").value.trim() || "https://DOMAIN-ANDA";
+  const tok = kamToken ? kamToken.token : "TOKEN_KAMERA";
+  let cmd = "python3 node_camera.py --server " + server + " --node " + k.id + " --token " + tok;
+  if (jenis === "ip") {
+    const rtsp = $("kr_rtsp").value.trim().replace(/'/g, "");
+    cmd += " \\\n  --perintah \"ffmpeg -y -loglevel error -rtsp_transport tcp -i '" + rtsp + "' -t {detik} -an -c:v copy {keluar}\"";
+  }
+  $("kr_perintah").textContent = cmd;
+  $("kr_salin_teks").textContent = kamToken ? "Salin" : "Salin (token disamarkan)";
+}
+async function ambilToken(baru) {
+  pesan("kr_token_pesan", "");
+  try {
+    kamToken = await api("/api/kamera/" + encodeURIComponent(kamPilih) + "/token", baru ? { method: "POST" } : undefined);
+    if (baru) await segarkanKamera(); else gambarRinciKamera();
+  } catch (e) { pesan("kr_token_pesan", e.message); }
+}
+$("kr_tampil").addEventListener("click", () => { if (kamToken) { kamToken = null; gambarRinciKamera(); } else ambilToken(false); });
+$("kr_token_baru").addEventListener("click", () => {
+  if (confirm("Buat token baru untuk " + kamPilih + "? Perangkat yang memakai token lama akan ditolak sampai perintahnya diganti.")) ambilToken(true);
+});
+document.querySelectorAll("input[name=kr_jenis_cmd]").forEach((r) => r.addEventListener("change", susunPerintah));
+$("kr_server").addEventListener("input", susunPerintah);
+$("kr_rtsp").addEventListener("input", susunPerintah);
+$("kr_salin").addEventListener("click", async () => {
+  if (!kamToken) await ambilToken(false);
+  susunPerintah();
+  const teks = $("kr_perintah").textContent;
+  try { await navigator.clipboard.writeText(teks); }
+  catch (e) {                                          // http biasa: clipboard API tidak tersedia
+    const r = document.createRange(); r.selectNodeContents($("kr_perintah"));
+    const s = getSelection(); s.removeAllRanges(); s.addRange(r); document.execCommand("copy");
+  }
+  $("kr_salin_teks").textContent = "Tersalin ✓";
+  clearTimeout(kamSalin); kamSalin = setTimeout(susunPerintah, 2000);
+});
+async function ubahKamera(data) {
+  const f = new FormData();
+  Object.entries(data).forEach(([a, b]) => f.append(a, b));
+  try { await api("/api/kamera/" + encodeURIComponent(kamPilih), { method: "POST", body: f }); await muatInfo(); await segarkanKamera(); }
+  catch (e) { pesan("kam_pesan", e.message); }
+}
+$("kr_ubah_nama").addEventListener("click", () => {
+  const k = kamDaftar.find((x) => x.id === kamPilih);
+  const nama = prompt("Nama baru untuk " + k.id + ":", k.nama);
+  if (nama && nama.trim() && nama.trim() !== k.nama) ubahKamera({ nama: nama.trim() });
+});
+$("kr_aktif").addEventListener("click", () => {
+  const k = kamDaftar.find((x) => x.id === kamPilih);
+  if (k.aktif && !confirm("Nonaktifkan " + k.nama + "? Perangkatnya akan ditolak dan kamera disembunyikan dari pilihan rekam, kalibrasi, dan proses.")) return;
+  ubahKamera({ aktif: !k.aktif });
+});
+$("kr_hapus").addEventListener("click", async () => {
+  const k = kamDaftar.find((x) => x.id === kamPilih);
+  if (!confirm("Hapus " + k.nama + " dari daftar? Rekaman, hasil, dan riwayat kalibrasinya tetap tersimpan di folder data.")) return;
+  try {
+    await api("/api/kamera/" + encodeURIComponent(k.id), { method: "DELETE" });
+    kamPilih = null; kamToken = null;
+    await muatInfo(); await segarkanKamera();
+  } catch (e) { pesan("kam_pesan", e.message); }
+});
+// ---------------------------------------------------------------- dialog Tambah kamera
+let idDiubah = false;
+function slug(t) {
+  return t.toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9]+/g, "_").replace(/^_+|_+$/g, "").slice(0, 40);
+}
+function cekIdBaru() {
+  const id = $("tk_id").value.trim(), s = $("tk_id_status");
+  const ok = /^[a-z0-9][a-z0-9_-]{0,39}$/.test(id), dipakai = kamDaftar.some((k) => k.id === id);
+  s.textContent = !id ? "" : !ok ? "✗ Tidak sah" : dipakai ? "✗ Sudah dipakai" : "✓ Tersedia";
+  s.className = !id ? "" : ok && !dipakai ? "teks_hijau" : "teks_merah";
+  return ok && !dipakai;
+}
+$("tambah_kamera").addEventListener("click", () => {
+  $("form_tambah").reset(); idDiubah = false;
+  let n = kamDaftar.length + 1;
+  while (kamDaftar.some((k) => k.id === "kamera" + n)) n++;
+  $("tk_id").value = "kamera" + n;
+  cekIdBaru(); pesan("tk_pesan", "");
+  $("dlg_tambah").showModal();
+  $("tk_nama").focus();
+});
+$("tk_nama").addEventListener("input", () => { if (idDiubah) return; const s = slug($("tk_nama").value); if (s) { $("tk_id").value = s; cekIdBaru(); } });
+$("tk_id").addEventListener("input", () => { idDiubah = true; cekIdBaru(); });
+$("tk_batal").addEventListener("click", () => $("dlg_tambah").close());
+$("tk_tutup").addEventListener("click", () => $("dlg_tambah").close());
+$("form_tambah").addEventListener("submit", async (ev) => {
+  ev.preventDefault();
+  pesan("tk_pesan", "");
+  if (!$("tk_nama").value.trim()) { pesan("tk_pesan", "Nama kamera wajib diisi."); return; }
+  if (!cekIdBaru()) { pesan("tk_pesan", "Periksa ID kamera: hanya huruf kecil, angka, _ dan -, dan belum dipakai."); return; }
+  const f = new FormData();
+  f.append("nama", $("tk_nama").value.trim()); f.append("id", $("tk_id").value.trim());
+  f.append("jenis", document.querySelector("input[name=tk_jenis]:checked").value); f.append("catatan", $("tk_catatan").value);
+  try {
+    const k = await api("/api/kamera", { method: "POST", body: f });
+    $("dlg_tambah").close();
+    kamPilih = k.id; kamToken = { token: k.token, bersama: false };
+    history.replaceState(null, "", "#/kamera/" + encodeURIComponent(k.id));
+    await muatInfo(); await segarkanKamera();
+    $("kr_hub").scrollIntoView({ behavior: "smooth", block: "start" });
+  } catch (e) { pesan("tk_pesan", e.message); }
 });
 
 // ================================================================ Proses
@@ -246,17 +709,55 @@ async function bukaProses() {
   pesan("galat_form", "");
   isiPilihan($("proses_model"), INFO.model.map((m) => [m, m]));
   if (!$("conf").value) { $("conf").value = INFO.bawaan.conf; $("conf_low").value = INFO.bawaan.conf_low; }
-  const pilih = sessionStorage.getItem("pilih_sumber");
+  const pilih = sessionStorage.getItem("pilih_sumber");    // dari tombol "Proses" di Pengambilan video
   sessionStorage.removeItem("pilih_sumber");
-  isiPilihan($("proses_sumber"), await daftarSumber(""), pilih || undefined);
-  ikutiNode();
+  if (pilih) {
+    const b = pilih.split("/");
+    if (b[0] === "rekaman" && INFO.node.some((n) => n.id === b[1])) $("proses_node").value = b[1];
+  }
+  await isiVideoNode(pilih || undefined);
+  await isiVersiKal();
   await segarkanAntrean();
 }
-function ikutiNode() {                       // rekaman -> profil node pemiliknya
-  const b = $("proses_sumber").value.split("/");
-  if (b[0] === "rekaman" && INFO.node.some((n) => n.id === b[1])) $("proses_node").value = b[1];
+// versi kalibrasi untuk pemrosesan ini (bawaan: yang sedang dipakai node)
+async function isiVersiKal() {
+  const node = $("proses_node").value;
+  let daftar = [];
+  try { daftar = await api("/api/kamera/" + encodeURIComponent(node) + "/riwayat"); } catch (e) { /* tetap pakai bawaan */ }
+  const aktif = daftar.find((v) => v.aktif);
+  const pilihan = [["", "Yang sedang dipakai" + (aktif ? " (versi " + aktif.versi + ")" : " (profil bawaan)")]];
+  if (aktif) pilihan.push(["bawaan", "Profil bawaan (tanpa kalibrasi dari web)"]);
+  daftar.filter((v) => !v.aktif).forEach((v) => pilihan.push([v.versi, "versi " + v.versi + " · " +
+    (v.metode === "xml" ? "berkas kalibrasi" : (v.metode === "klik" ? "klik · " : "") + "sudut " + v.PITCH_DEG + "° · tinggi " + v.CAM_HEIGHT_M + " m") +
+    " · garis " + v.LINE_Y_DEFAULT_M + "/" + v.LINE_Y_AWAY_M + " m"]));
+  isiPilihan($("proses_kal"), pilihan, "");
 }
-$("proses_sumber").addEventListener("change", ikutiNode);
+$("proses_node").addEventListener("change", async () => { await isiVideoNode(); await isiVersiKal(); });
+// pilih kamera dulu, lalu yang tampil hanya video yang direkam/diunggah untuk kamera itu
+async function isiVideoNode(pilih) {
+  const node = $("proses_node").value;
+  const sel = $("proses_sumber");
+  const lama = pilih !== undefined ? pilih : sel.value;
+  let rekaman = [];
+  try { rekaman = await api("/api/rekaman?node=" + encodeURIComponent(node)); } catch (e) { pesan("galat_form", e.message); }
+  sel.replaceChildren();
+  const grup = (label, isi) => {
+    if (!isi.length) return;
+    const g = document.createElement("optgroup");
+    g.label = label;
+    isi.forEach(([v, t]) => g.appendChild(new Option(t, v)));
+    sel.appendChild(g);
+  };
+  const baris = (r) => [r.sumber, r.waktu + " · " + r.ukuran_mb.toFixed(1) + " MB" + (r.job.length ? " · sudah diproses" : "")];
+  grup("Rekaman manual", rekaman.filter((r) => r.mode === "manual").map(baris));
+  grup("Rekaman otomatis", rekaman.filter((r) => r.mode === "otomatis").map(baris));
+  grup("Video contoh (data uji, bukan rekaman kamera ini)", INFO.contoh.map((c) => ["contoh/" + c, c]));
+  if ([...sel.options].some((o) => o.value === lama)) sel.value = lama;
+  const adaRekaman = rekaman.length > 0;
+  $("proses_kosong").hidden = adaRekaman;
+  $("tombol").disabled = sel.options.length === 0;
+}
+
 async function segarkanAntrean() {
   if (halaman !== "proses") return;
   try {
@@ -287,6 +788,7 @@ $("form_proses").addEventListener("submit", async (ev) => {
   data.append("model", $("proses_model").value);
   data.append("conf", $("conf").value);
   data.append("conf_low", $("conf_low").value);
+  data.append("kalibrasi", $("proses_kal").value);
   $("tombol").disabled = true;
   try {
     const j = await api("/api/jobs", { method: "POST", body: data });
@@ -387,7 +889,8 @@ function gambarHasil(j) {
   const g = j.garis || {};
   $("hasil_info").textContent = "Direkam " + (j.waktu_video || "-") + " · " + namaNode(j.node || "") + " · model " + (j.model || "-") +
     " · durasi " + jam(r.durasi_detik) + " · " + j.frame_total + " frame · diproses " + j.dibuat + " dalam " + j.lama_detik + " detik" +
-    (g.mendekat !== undefined ? " · garis " + g.mendekat + " m / " + g.menjauh + " m" : "");
+    (g.mendekat !== undefined ? " · garis " + g.mendekat + " m / " + g.menjauh + " m" : "") +
+    (j.kalibrasi ? " · kalibrasi " + (j.kalibrasi.versi ? "versi " + j.kalibrasi.versi : (j.kalibrasi.sumber === "bawaan" ? "profil bawaan" : "config.py")) : "");
   $("unduh_csv").href = dasar + "counting_log.csv";
   const v = $("pemutar");
   v.hidden = !j.ada_video;
