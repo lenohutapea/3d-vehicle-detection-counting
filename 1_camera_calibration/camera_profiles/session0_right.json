@@ -1,0 +1,13 @@
+{
+ "PITCH_DEG": 15.5,
+ "CAM_HEIGHT_M": 11.1,
+ "FOCAL_PX": 580.0,
+ "LANE_HALF_WIDTH_M": 20.0,
+ "MAX_TRACK_DEPTH_M": 105.0,
+ "LINE_Y_DEFAULT_M": 50.0,
+ "LINE_Y_AWAY_M": 85.0,
+ "MEDIAN_X_M": 7.0,
+ "mode": "xml",
+ "CALIB_XML": "/home/angeleno/3d-vehicle-detection-counting/1_camera_calibration/xml/session0_right_calibParams.xml",
+ "tersimpan": "2026-11-21 15:28:46"
+}

@@ -1,0 +1,17 @@
+# Contoh layanan systemd untuk node kamera (Raspberry Pi).
+# Salin ke /etc/systemd/system/node-camera.service, ganti USER, jalur, dan TOKEN_NODE, lalu:
+#   sudo systemctl daemon-reload && sudo systemctl enable --now node-camera
+#   journalctl -u node-camera -f
+[Unit]
+Description=Node kamera (rekam dan kirim video ke server)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=pi
+ExecStart=/usr/bin/python3 /home/pi/node_camera.py --server https://www.tespen.cloud --node kamera1 --token TOKEN_NODE
+Restart=always
+RestartSec=10
+
+[Install]
+WantedBy=multi-user.target

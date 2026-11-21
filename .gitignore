@@ -1,24 +1,20 @@
-venv_3dbbox/
-data_session0_right/
-bobot/
-video_uji/
-acuan/
-_buangan/
-3d-car-classification-counting/
-.rapikan_cadangan/
-.rapikan_catatan.json
-hasil/video/
-uji_session0_pipeline/crop_cek/
-uji_session0_pipeline/output_frames/
-__pycache__/
+# data besar / rahasia (lihat README)
+data/
 *.pth
-*.pkl
+*.pt
 *.mp4
-*.sebelum_*
-hasil/antarmuka/
-*.lama
-antarmuka/_lama/
-antarmuka/data/
-video_rekaman/
-kode_notebook/
-hasil/notebook/
+*.avi
+*.pkl
+counting_log.csv
+centernet3d_bbox/pipeline/crops/
+
+# Python
+__pycache__/
+*.pyc
+.ipynb_checkpoints/
+venv*/
+.env
+
+# hasil eksperimen untuk laporan (kecil, boleh masuk Git)
+!docs/experiments/**
+docs/experiments/**/*.pkl

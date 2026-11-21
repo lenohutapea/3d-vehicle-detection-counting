@@ -1,3 +1,19 @@
+## Struktur folder
+
+```
+3d-vehicle-detection-counting/
+├── 1_camera_calibration/   UTAMA 1 - kalibrasi kamera per node (calibration.py, calibration_preview.py, camera_profiles/, xml/)
+├── 2_automatic/            UTAMA 2 - rekam sesuai jadwal, langsung diproses (schedule.json, schedule.py, receive_recording.py, auto_process.py)
+├── 3_manual/               UTAMA 3 - rekam tombol / unggah, diproses saat dipilih (manual_record.py, upload_video.py, manual_process.py)
+├── centernet3d_bbox/       inti: pipeline/ (deteksi -> pelacakan -> klasifikasi -> penghitungan), job_worker.py, node/, training/, tools/
+├── web/                    antarmuka web: backend/ (FastAPI) dan frontend/
+├── notebooks/              full_notebook.ipynb
+└── data/                   TIDAK masuk Git: settings.json, weights/, recordings/, results/, test_videos/, dataset
+```
+
+Menjalankan antarmuka web: `./web/backend/run.sh` lalu buka http://127.0.0.1:8000
+
+
 # 3D Vehicle Detection, Classification, and Counting
 
 Pipeline deteksi kotak 3D, pelacakan, klasifikasi 4 kelas, dan penghitungan kendaraan dari satu kamera jalan raya, dilengkapi antarmuka web. Dikerjakan sebagai Tugas Akhir oleh Angeleno Zuliano Hutapea.
