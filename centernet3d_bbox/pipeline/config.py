@@ -46,6 +46,13 @@ MAX_WIDTH_M = 2.5          # lebar dipotong sampai batas ini
 HEIGHT_RANGE_M = (1.0, 5.0)
 MIN_LENGTH_M = 3.0
 
+# Koreksi focal. Detektor menebak ukuran kendaraan sebagai rasio terhadap jarak, dan rasio itu
+# "terkunci" pada focal kamera data latih. Kamera dengan lensa lebih lebar (focal lebih kecil)
+# membuat kendaraan tampak lebih kecil di gambar, sehingga ukuran terbaca terlalu kecil.
+# Ukuran dikalikan F_LATIH_PX / focal kamera ini. Untuk session0_right faktornya 1 (hasil lama sama).
+F_LATIH_PX = 2662.78       # focal session0_right pada lebar IMG_W (3994.17 px pada 1920) [kode asal: calibParams]
+KOREKSI_FOKUS = True
+
 # ----------------------------------------------------------------------
 # Kalman Filter (constant velocity pada sumbu jalan)
 # R. E. Kalman, "A New Approach to Linear Filtering and Prediction
@@ -128,7 +135,7 @@ OUTPUT_DIR = "output_frames"
 # Klasifier gambar 4 kelas (ResNet-18, dilatih pada MIO-TCD + potongan session0_right)
 # [heuristik] cara menggabungkan dengan panjang; bobot dari dosen/penelitian sendiri.
 # ----------------------------------------------------------------------
-KLAS_MODEL = os.path.join(_AKAR, "data", "weights", "classifier", "klas_ft2.pth")
+KLAS_MODEL = os.path.join(_AKAR, "data", "weights", "classifier", "klas_lokal.pth")
 KLAS_UKURAN = 128          # sisi letterbox masukan (sama dengan saat latihan)
 KLAS_EVERY = 2             # klasifikasi gambar tiap sekian frame per track (hemat waktu)
 KLAS_MIN_SIDE_PX = 24      # crop dengan sisi terpanjang lebih kecil dari ini dilewati

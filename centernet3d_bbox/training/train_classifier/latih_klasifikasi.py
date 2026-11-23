@@ -15,6 +15,11 @@ Catatan : 'Car' di XML session0_right mencakup SUV, minivan, bahkan van/pickup; 
 Pemakaian: python3 latih_klasifikasi.py --epochs 1 --max-per-class 20 --tag uji     (uji kecil)
            python3 latih_klasifikasi.py --epochs 5 --tag klas5
            python3 latih_klasifikasi.py --eval-saja ~/projects/bobot/klasifikasi/klas5.pth
+Data lokal (kamera sendiri, ATCS Medan), mis. hasil tools/crop_from_video.py + tools/sort_crops.py:
+           python3 latih_klasifikasi.py --init <klas_ft2.pth> --tambah ~/dataset_lokal/potongan \
+               --tambah ~/dataset_publik/atcs_medan/potongan --max-per-class 1500 --epochs 6 --lr 1e-4 --tag klas_lokal
+           Folder tambahan berisi {train,val|valid}/<kelas>/*.jpg. Potongan latihnya diulang --ulang-tambah kali,
+           dan akurasi validasi LOKAL dipakai untuk memilih bobot terbaik.
 """
 import argparse
 import csv
@@ -158,7 +163,18 @@ def main(argv=None):
     p.add_argument("--frame-bagi", type=int, default=2545, help="frame < ini = latih, >= ini = uji (sama dengan detektor)")
     p.add_argument("--uji-val-saja", action="store_true", help="uji session0_right hanya frame >= --frame-bagi")
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--tambah", action="append", default=[], help="folder data lokal {train,val}/<kelas>/ (boleh berulang)")
+    p.add_argument("--ulang-tambah", type=int, default=3, help="pengulangan potongan lokal di data latih")
     a = p.parse_args(argv)
+    a.tambah = [os.path.expanduser(t) for t in a.tambah]
+
+    def lokal(split):
+        out = []
+        for t in a.tambah:
+            for nama in ((split,) if split == "train" else ("val", "valid")):
+                if os.path.isdir(os.path.join(t, nama)):
+                    out += listar(t, nama)
+        return out
 
     import torch
     import torch.nn as nn
@@ -220,6 +236,11 @@ def main(argv=None):
         return tot / max(n, 1), benar / max(n, 1), yt, yp, probs
 
     def evaluasi_akhir(model, tag):
+        lv = lokal("val")
+        if lv:
+            _, accl, ytl, ypl, _ = lintasan(model, loader(lv, False))
+            cetak_matriks(matriks(ytl, ypl), "UJI LOKAL (validasi data tambahan, %d potongan, akurasi %.4f)" % (len(lv), accl),
+                          sorted(set(y for _, y in lv)))
         te = listar(a.root, "test", maks=a.max_per_class)
         _, acc, yt, yp, _ = lintasan(model, loader(te, False))
         cetak_matriks(matriks(yt, yp), "UJI MIO-TCD (%d gambar, akurasi %.4f)" % (len(te), acc))
@@ -259,6 +280,11 @@ def main(argv=None):
             % (a.frame_bagi, len(sc), a.ulang_session, len(sv), a.ulang_van))
         tr = tr + sc * a.ulang_session + sv * a.ulang_van
     va = listar(a.root, "val", maks=a.max_per_class)
+    lt, lv = lokal("train"), lokal("val")
+    if a.tambah:
+        log("data lokal: %d latih (x%d), %d validasi dari %s" % (len(lt), a.ulang_tambah, len(lv), a.tambah))
+        tr = tr + lt * a.ulang_tambah
+    va_pilih = lv if lv else va          # bobot terbaik dipilih dari validasi lokal bila ada
     log("torch %s | torchvision %s | argumen: %s" % (torch.__version__, torchvision.__version__, vars(a)))
     log("latih %d | validasi %d gambar" % (len(tr), len(va)))
     model = buat_model(not a.no_pretrained and not a.init)
@@ -271,7 +297,7 @@ def main(argv=None):
         csv.writer(f).writerow(["epoch", "lr", "train_loss", "train_acc", "val_loss", "val_acc", "detik"])
     out = os.path.join(a.outdir, a.tag + ".pth")
     terbaik = -1.0
-    dl_tr, dl_va = loader(tr, True), loader(va, False)
+    dl_tr, dl_va = loader(tr, True), loader(va_pilih, False)
     for ep in range(a.epochs):
         t0 = time.time()
         lr = opt.param_groups[0]["lr"]

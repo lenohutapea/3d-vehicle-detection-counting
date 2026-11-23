@@ -10,11 +10,14 @@ proyek antoinekeller/3d_bbox_highway]. Ambang filter: lihat config.py [heuristik
 import numpy as np
 
 import config as cfg
-from geometry import CAMERA_POS, get_position_ground
+from geometry import CAMERA_POS, K, get_position_ground
+
+# Faktor koreksi focal (lihat config.F_LATIH_PX). Jarak dikali faktor ini hanya untuk menghitung ukuran.
+SKALA_UKURAN = (cfg.F_LATIH_PX / float(K[0, 0])) if getattr(cfg, "KOREKSI_FOKUS", False) else 1.0
 
 
 def reject_reason(box, ground, depth):
-    """Alasan deteksi dibuang, atau None bila lolos."""
+    """Alasan deteksi dibuang, atau None bila lolos. depth sudah termasuk SKALA_UKURAN."""
     if abs(ground[0]) > cfg.LANE_HALF_WIDTH_M:
         return "luar jalur"
     if box["w"] * depth < cfg.MIN_WIDTH_M:
@@ -40,7 +43,7 @@ def to_world_detections(boxes, conf_split=None):
     world, marks, rejected = [], [], {}
     for box in boxes:
         ground = get_position_ground(box["x"], box["y"])
-        depth = float(np.linalg.norm(ground - CAMERA_POS))
+        depth = float(np.linalg.norm(ground - CAMERA_POS)) * SKALA_UKURAN
         reason = reject_reason(box, ground, depth)
         low = conf_split is not None and box["score"] < conf_split
         marks.append((box["x"], box["y"], reason, low))
